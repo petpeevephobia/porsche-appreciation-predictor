@@ -1,0 +1,75 @@
+/* GLOBAL */
+:root {
+    --black: #0E0E12;
+    --grey: #6B7280
+}
+
+@font-face {
+    font-family: "Helvetica-Neue";
+    src: url('assets/HelveticaNeueRoman.otf') format("opentype");
+}
+
+* {
+    font-family: "Roboto-Condensed", sans-serif;
+    color: var(--black);
+    margin: 0;
+}
+
+h1, .logo {
+    font-family: Helvetica-Neue;
+}
+
+body {
+    background-color: white;
+    gap: 58px;
+}
+
+.container > * {
+    padding: 0 8px;
+    margin-bottom: 16px;
+}
+
+
+
+
+
+/* NAV */
+nav {
+    padding: 24px 8px;
+}
+
+.logo {
+    font-size: 16px;
+}
+
+
+
+
+
+/* MAIN */
+/* Image upload */
+.upload-box {
+    border: dashed var(--grey) 2px;
+    border-radius: 12px;
+    height: 374px;
+    margin: 0 8px;
+    /* Children positioning */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.pri-btn {
+    background-color: var(--black);
+    border: none;
+    border-radius: 4px;
+    padding: 12px 24px;
+    color: white;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+}
+
+.pri-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
