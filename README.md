@@ -134,14 +134,6 @@ How an image and seller text move through the pipeline in a single request:
 
 ---
 
-## Demonstration
-
-> Upload a Porsche listing photo → the system identifies the model, inspects the condition, values the car, and predicts whether it will appreciate over the next 3 years.
-
-*(GIF to be added: user uploads listing images → system generates full report)*
-
----
-
 ## Why This Project Maps to Porsche AI
 
 | Capability | How it appears in this project |
