@@ -30,8 +30,7 @@ scraper/venv/
 # Data files (too large for git)
 project/data/images/
 project/data/descriptions/
-project/data/embeddings/
-project/data/corpus/
+/project/data/csv/porsche_data.csv
 
 # Model files
 *.pkl

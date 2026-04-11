@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="stylesheet" href="../static/style.css">
-    <!-- Google Fonts -->
+    <title>Porsche Appreciation Predictor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
@@ -15,13 +14,433 @@
         <h1 class="logo">Porsche Appreciation Predictor</h1>
     </nav>
 
-    <!-- Start of main content -->
     <div class="container">
-        <h1>Is your car worth keeping?</h1>
-        <div class="upload-box">
-            <a href="#"><button class="pri-btn">Upload image</button></a>
+        <h1>Is this car worth keeping?</h1>
+
+        <!-- Upload box -->
+        <div class="upload-box" id="uploadBox">
+            <div id="uploadPrompt">
+                <p class="upload-hint">Drop an image or click to browse</p>
+                <button class="pri-btn" type="button" id="uploadBtn">Upload image</button>
+            </div>
+            <img id="imagePreview" class="image-preview" alt="Selected listing photo" hidden>
         </div>
-    </div>
-    <!-- End of main content -->
+        <input type="file" id="imageInput" accept="image/*" hidden>
+        <button class="reupload-link" id="reuploadBtn" type="button" hidden>Change photo</button>
+
+        <!-- Optional inputs (collapsible) -->
+        <button class="optional-toggle" id="optionalToggle" type="button">
+            <span>Add optional details</span>
+            <svg class="toggle-chevron" id="toggleChevron" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+
+        <div class="optional-fields" id="optionalFields" hidden>
+            <textarea
+                id="sellerText"
+                class="text-input"
+                placeholder="Notes — improves condition analysis"
+                rows="4"
+            ></textarea>
+
+            <input
+                type="number"
+                id="mileage"
+                class="price-input"
+                placeholder="Mileage (miles)"
+                min="0"
+            >
+
+            <input
+                type="number"
+                id="askingPrice"
+                class="price-input"
+                placeholder="Asking price (USD)"
+                min="0"
+            >
+        </div>
+
+        <!-- Analyse button -->
+        <button class="pri-btn analyse-btn" id="analyseBtn" type="button" disabled>
+            Analyse
+        </button>
+
+        <!-- Progress bar -->
+        <div id="progressContainer" hidden>
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p class="progress-label" id="progressLabel"></p>
+        </div>
+
+        <!-- Error message -->
+        <p class="error-msg" id="errorMsg" hidden></p>
+
+        <!-- Results — hidden until the API responds -->
+        <div class="results" id="results" hidden>
+
+            <!-- Card 1: Vehicle Detected -->
+            <div class="result-card">
+                <h2 class="card-title">Vehicle Detected</h2>
+                <div class="card-row">
+                    <span class="card-label">Model</span>
+                    <span class="card-value" id="r-model">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Year</span>
+                    <span class="card-value" id="r-year">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Condition</span>
+                    <span class="card-value" id="r-condition">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Mileage</span>
+                    <span class="card-value" id="r-mileage">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Historical price</span>
+                    <span class="card-value" id="r-hist-price">—</span>
+                </div>
+            </div>
+
+            <!-- Card 2: Condition Report -->
+            <div class="result-card">
+                <h2 class="card-title">Condition Report</h2>
+                <div class="condition-header">
+                    <div class="card-row">
+                        <span class="card-label">Grade</span>
+                        <span class="card-value" id="r-cond-grade">—</span>
+                    </div>
+                    <div class="card-row">
+                        <span class="card-label">Score</span>
+                        <span class="card-value" id="r-cond-score">—</span>
+                    </div>
+                </div>
+
+                <div id="r-red-flags-section" hidden>
+                    <p class="card-section-title">Red Flags</p>
+                    <ul class="card-list" id="r-red-flags"></ul>
+                </div>
+
+                <div id="r-inconsistencies-section" hidden>
+                    <p class="card-section-title">Text / Photo Inconsistencies</p>
+                    <ul class="card-list" id="r-inconsistencies"></ul>
+                </div>
+
+                <div id="r-restoration-section" hidden>
+                    <p class="card-section-title">Recommended Restoration</p>
+                    <ul class="card-list" id="r-restoration"></ul>
+                </div>
+
+                <p class="card-summary" id="r-cond-summary"></p>
+            </div>
+
+            <!-- Card 3: Market Valuation -->
+            <div class="result-card">
+                <h2 class="card-title">Market Valuation</h2>
+                <p class="valuation-label">Current estimated value</p>
+                <p class="valuation-figure" id="r-valuation-figure">—</p>
+                <div class="valuation-text" id="r-valuation-text"></div>
+            </div>
+
+            <!-- Card 4: 3-Year Appreciation -->
+            <div class="result-card">
+                <h2 class="card-title">3-Year Outlook</h2>
+                <p class="appreciation-badge" id="r-appreciation-badge"></p>
+                <div class="card-row" style="margin-top: 12px;">
+                    <span class="card-label">Model confidence</span>
+                    <span class="card-value" id="r-confidence">—</span>
+                </div>
+            </div>
+
+        </div><!-- /results -->
+    </div><!-- /container -->
+
+    <script>
+        // #region agent log
+        const _dl = (msg, data, hyp) => fetch('/debug-log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId:'8147b6', location:'index.html', message:msg, data, hypothesisId:hyp, timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+
+        const uploadBox    = document.getElementById('uploadBox');
+        const uploadBtn    = document.getElementById('uploadBtn');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const imageInput   = document.getElementById('imageInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const analyseBtn        = document.getElementById('analyseBtn');
+        const reuploadBtn       = document.getElementById('reuploadBtn');
+        const errorMsg          = document.getElementById('errorMsg');
+        const results           = document.getElementById('results');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill      = document.getElementById('progressFill');
+        const progressLabel     = document.getElementById('progressLabel');
+
+        // ── Image selection ────────────────────────────────────────────────
+        uploadBtn.addEventListener('click',    () => imageInput.click());
+        reuploadBtn.addEventListener('click',  () => imageInput.click());
+
+        uploadBox.addEventListener('dragover', e => {
+            e.preventDefault();
+            uploadBox.classList.add('drag-over');
+        });
+        uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('drag-over'));
+        uploadBox.addEventListener('drop', e => {
+            e.preventDefault();
+            uploadBox.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                setImage(file);
+            }
+        });
+
+        imageInput.addEventListener('change', () => {
+            if (imageInput.files[0]) setImage(imageInput.files[0]);
+        });
+
+        function setImage(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                imagePreview.src = e.target.result;
+                imagePreview.hidden = false;
+                uploadPrompt.hidden = true;
+                uploadBox.classList.add('has-image');
+                reuploadBtn.hidden = false;
+            };
+            reader.readAsDataURL(file);
+            analyseBtn.disabled = false;
+        }
+
+        // ── Analysis ───────────────────────────────────────────────────────
+        analyseBtn.addEventListener('click', runAnalysis);
+
+        async function runAnalysis() {
+            const file = imageInput.files[0];
+            if (!file) return;
+
+            setLoading(true);
+            results.hidden  = true;
+            errorMsg.hidden = true;
+            setProgress(0, '');
+
+            const form = new FormData();
+            form.append('image',        file);
+            form.append('seller_text',  document.getElementById('sellerText').value);
+            form.append('mileage',      document.getElementById('mileage').value);
+            form.append('asking_price', document.getElementById('askingPrice').value);
+
+            const controller = new AbortController();
+            const timeoutId  = setTimeout(() => controller.abort(), 3 * 60 * 1000);
+
+            // #region agent log
+            _dl('fetch starting', {containerHidden: progressContainer.hidden, containerInDOM: !!progressContainer}, 'H-D');
+            // #endregion
+
+            try {
+                const resp = await fetch('/analyze', {
+                    method: 'POST',
+                    body: form,
+                    signal: controller.signal,
+                });
+
+                // #region agent log
+                _dl('response received', {ok: resp.ok, status: resp.status, bodyIsNull: resp.body === null, bodyType: typeof resp.body}, 'H-B');
+                // #endregion
+
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    showError(data.error || 'Analysis failed. Please try again.');
+                    return;
+                }
+
+                const reader  = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer    = '';
+                let readCount = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    readCount++;
+                    // #region agent log
+                    _dl('reader.read chunk', {readCount, done, byteLength: value ? value.byteLength : 0, preview: value ? new TextDecoder().decode(value).slice(0, 150) : '(done)'}, 'H-A H-C');
+                    // #endregion
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const chunks = buffer.split('\n\n');
+                    buffer = chunks.pop();
+
+                    for (const chunk of chunks) {
+                        if (!chunk.startsWith('data: ')) continue;
+                        const event = JSON.parse(chunk.slice(6));
+
+                        // #region agent log
+                        _dl('setProgress called', {step: event.step, progress: event.progress, label: event.label}, 'H-C H-D');
+                        // #endregion
+
+                        if (event.step === 'error') {
+                            showError(event.error || 'Analysis failed. Please try again.');
+                            return;
+                        }
+
+                        setProgress(event.progress, event.label);
+
+                        if (event.step === 'done') {
+                            clearTimeout(timeoutId);
+                            renderResults(event.result);
+                            results.hidden = false;
+                            results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    showError('Analysis timed out — the server took too long to respond.');
+                } else {
+                    showError('Could not reach the server. Is the app running?');
+                }
+            } finally {
+                clearTimeout(timeoutId);
+                setLoading(false);
+            }
+        }
+
+        function setLoading(on) {
+            analyseBtn.disabled = on;
+            progressContainer.hidden = !on;
+            if (!on) setProgress(0, '');
+        }
+
+        function setProgress(pct, label) {
+            progressFill.style.width  = `${pct}%`;
+            progressLabel.textContent = label;
+            // #region agent log
+            requestAnimationFrame(() => {
+                _dl('setProgress RAF dims', {
+                    pct,
+                    fillStyleWidth: progressFill.style.width,
+                    fillOffsetWidth: progressFill.offsetWidth,
+                    fillOffsetHeight: progressFill.offsetHeight,
+                    fillClientHeight: progressFill.clientHeight,
+                    trackOffsetHeight: progressFill.parentElement ? progressFill.parentElement.offsetHeight : 'N/A',
+                    containerOffsetHeight: progressContainer.offsetHeight,
+                    containerDisplay: getComputedStyle(progressContainer).display,
+                    fillDisplay: getComputedStyle(progressFill).display,
+                    fillBg: getComputedStyle(progressFill).backgroundColor,
+                }, 'H-E H-F H-G');
+            });
+            // #endregion
+        }
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.hidden = false;
+        }
+
+        // ── Result rendering ───────────────────────────────────────────────
+        function renderResults(d) {
+            const v  = d.vehicle_info;
+            const cr = d.condition_report;
+            const ap = d.appreciation_prediction;
+
+            // Card 1 — Vehicle
+            setText('r-model',      `Porsche ${v.model_type}`);
+            setText('r-year',       v.model_year ?? '—');
+            setText('r-condition',  v.condition ?? '—');
+            setText('r-mileage',    v.mileage ? `${v.mileage.toLocaleString()} mi` : '—');
+            setText('r-hist-price', d.price_3_years_ago
+                ? `$${Math.round(d.price_3_years_ago).toLocaleString()} (3 yrs ago)`
+                : 'Insufficient data');
+
+            // Card 2 — Condition
+            setText('r-cond-grade', cr.overall_condition_grade ?? '—');
+            setText('r-cond-score', cr.condition_score != null
+                ? `${cr.condition_score} / 10` : '—');
+
+            renderList('r-red-flags', 'r-red-flags-section',
+                (cr.red_flags || []).map(f => f));
+
+            renderList('r-inconsistencies', 'r-inconsistencies-section',
+                (cr.text_photo_inconsistencies || []).map(
+                    x => `${x.claim_in_text} → ${x.what_photos_show}`));
+
+            renderList('r-restoration', 'r-restoration-section',
+                cr.recommended_restoration_steps || []);
+
+            setText('r-cond-summary', cr.summary || '');
+
+            // Card 3 — Valuation
+            setText('r-valuation-figure',
+                d.current_valuation
+                    ? `$${Math.round(d.current_valuation).toLocaleString()}`
+                    : '—');
+            document.getElementById('r-valuation-text').innerHTML =
+                formatValuationText(d.llm_valuation || '');
+
+            // Card 4 — Appreciation
+            const badge = document.getElementById('r-appreciation-badge');
+            if (ap.will_appreciate) {
+                badge.textContent = '↑ Likely to appreciate';
+                badge.className   = 'appreciation-badge appreciate';
+            } else {
+                badge.textContent = '↓ Likely to depreciate';
+                badge.className   = 'appreciation-badge depreciate';
+            }
+            setText('r-confidence', `${(ap.confidence * 100).toFixed(0)}%`);
+        }
+
+        function setText(id, value) {
+            document.getElementById(id).textContent = value;
+        }
+
+        function renderList(listId, sectionId, items) {
+            const section = document.getElementById(sectionId);
+            const list    = document.getElementById(listId);
+            if (!items || items.length === 0) {
+                section.hidden = true;
+                return;
+            }
+            list.innerHTML = items.map(i => `<li>${escapeHtml(String(i))}</li>`).join('');
+            section.hidden = false;
+        }
+
+        function formatValuationText(raw) {
+            return raw
+                .replace(/^\*{0,2}VALUATION:\*{0,2}.*$/m, '')
+                .replace(/\*+/g, '')
+                .trim()
+                .split('\n')
+                .filter(l => l.trim())
+                .map(l => {
+                    const safe = escapeHtml(l);
+                    return safe
+                        .replace(/^REASONING:\s*/i, '<strong>Reasoning:</strong> ')
+                        .replace(/^FACTORS:\s*/i,   '<strong>Factors:</strong> ');
+                })
+                .map(l => `<p>${l}</p>`)
+                .join('');
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        // ── Optional fields toggle ─────────────────────────────────────────
+        const optionalToggle = document.getElementById('optionalToggle');
+        const optionalFields = document.getElementById('optionalFields');
+        const toggleChevron  = document.getElementById('toggleChevron');
+        let optionalOpen = false;
+
+        optionalToggle.addEventListener('click', () => {
+            optionalOpen = !optionalOpen;
+            optionalFields.hidden = !optionalOpen;
+            toggleChevron.style.transform = optionalOpen ? 'rotate(180deg)' : '';
+            optionalToggle.querySelector('span').textContent =
+                optionalOpen ? 'Hide optional details' : 'Add optional details';
+        });
+    </script>
 </body>
 </html>
