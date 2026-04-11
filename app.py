@@ -314,19 +314,77 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
+_ALLOWED_MIMETYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
+_MAGIC_BYTES = {
+    b'\xff\xd8\xff':      'image/jpeg',
+    b'\x89PNG\r\n\x1a\n': 'image/png',
+    b'RIFF':              'image/webp',  # checked further below
+    b'GIF87a':            'image/gif',
+    b'GIF89a':            'image/gif',
+}
+_MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
+_MAX_TEXT_LEN    = 5_000
+_MAX_PRICE       = 10_000_000
+_MAX_MILEAGE     = 10_000_000
+
+
+def _sniff_mimetype(header: bytes) -> str | None:
+    """Return MIME type from the first 12 bytes, or None if unrecognised."""
+    for magic, mime in _MAGIC_BYTES.items():
+        if header[:len(magic)] == magic:
+            if mime == 'image/webp' and header[8:12] != b'WEBP':
+                return None
+            return mime
+    return None
+
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     if 'image' not in request.files or request.files['image'].filename == '':
         return jsonify({'error': 'No image provided.'}), 400
 
-    image_file        = request.files['image']
-    seller_text       = request.form.get('seller_text', '')
-    asking_price_raw  = request.form.get('asking_price', '').strip()
-    asking_price      = float(asking_price_raw) if asking_price_raw else None
-    mileage_raw       = request.form.get('mileage', '').strip()
-    user_mileage      = float(mileage_raw) if mileage_raw else None
+    image_file = request.files['image']
 
-    suffix = os.path.splitext(image_file.filename)[1] or '.jpg'
+    # ── Image validation ──────────────────────────────────────────────────────
+    header = image_file.read(12)
+    image_file.seek(0)
+    detected_mime = _sniff_mimetype(header)
+    if detected_mime not in _ALLOWED_MIMETYPES:
+        return jsonify({'error': 'Unsupported image type. Upload a JPEG, PNG, WebP, or GIF.'}), 415
+
+    image_file.seek(0, 2)
+    file_size = image_file.tell()
+    image_file.seek(0)
+    if file_size > _MAX_IMAGE_BYTES:
+        return jsonify({'error': 'Image exceeds the 20 MB size limit.'}), 413
+
+    # ── Text / numeric field validation ───────────────────────────────────────
+    seller_text = request.form.get('seller_text', '')[:_MAX_TEXT_LEN]
+
+    def _parse_positive_float(raw, max_val):
+        raw = (raw or '').strip()
+        if not raw:
+            return None
+        try:
+            val = float(raw)
+        except ValueError:
+            return False
+        if val < 0 or val > max_val or not (val == val):  # NaN guard
+            return False
+        return val
+
+    asking_price = _parse_positive_float(request.form.get('asking_price'), _MAX_PRICE)
+    user_mileage = _parse_positive_float(request.form.get('mileage'),      _MAX_MILEAGE)
+
+    if asking_price is False:
+        return jsonify({'error': 'Invalid asking price.'}), 400
+    if user_mileage is False:
+        return jsonify({'error': 'Invalid mileage value.'}), 400
+
+    # ── Save to temp file ─────────────────────────────────────────────────────
+    _MIME_TO_EXT = {'image/jpeg': '.jpg', 'image/png': '.png',
+                    'image/webp': '.webp', 'image/gif': '.gif'}
+    suffix = _MIME_TO_EXT[detected_mime]
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     image_file.save(tmp.name)
     tmp.close()
@@ -400,4 +458,4 @@ def analyze():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False, threaded=True)
+    app.run(debug=False, host='0.0.0.0', port=8080, use_reloader=False, threaded=True)

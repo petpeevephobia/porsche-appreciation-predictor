@@ -1,0 +1,40 @@
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Secrets
+.env
+
+# Dev/test
+project/notebooks/
+scraper/
+graphs/
+*.log
+
+# Large data not needed at runtime
+project/data/images/
+project/data/descriptions/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docs
+README.md
+PORTABILITY.md
+*.plan.md
