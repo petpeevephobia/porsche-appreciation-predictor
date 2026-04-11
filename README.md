@@ -21,7 +21,7 @@ TECHNICAL STACK:
   LLM:        Gemini (multimodal) for condition reports and valuation reasoning
   Backend:    Flask, Python
   Frontend:   HTML / CSS / JavaScript (vanilla, no framework)
-  Deployment: Fly.io
+  Deployment: Run locally (see setup below)
 
 KEY RESULTS:
   - Model achieves 78% accuracy on held-out test set
@@ -37,7 +37,6 @@ WHAT I LEARNED:
   - Model evaluation: accuracy, precision, recall, F1, feature importance
   - Pipeline engineering: chaining CLIP → Qdrant → Gemini → sklearn in one request
   - Production Flask app: file upload handling, temp files, JSON API
-  - Cloud deployment: containerisation and hosting on Fly.io
 ```
 
 ---
@@ -143,7 +142,7 @@ How an image and seller text move through the pipeline in a single request:
 | **Pipeline engineering** | Six-stage chain (CLIP → Qdrant → HistoricalMatcher → Gemini × 2 → sklearn) streamed to the browser in real time via Server-Sent Events |
 | **LLM + vision integration** | Gemini receives raw PIL images alongside structured prompts; outputs both structured JSON (condition) and free-text (valuation) |
 | **ML modelling** | Random Forest trained on scraped real-world data; feature importance analysis identifies mileage as the dominant depreciation signal |
-| **Cloud deployment** | Containerised Flask app deployed to Fly.io; environment-variable secret management; persistent Qdrant DB volume |
+| **Deployment** | Flask app with environment-variable secret management via \.env\; persistent on-disk Qdrant DB — runs locally on any machine with 4 GB+ RAM |
 | **Monitoring** | Model predictions logged per-request; pipeline step timing visible in server stdout; error states surfaced to the UI |
 | **Data engineering** | Custom Selenium scraper collects listings, images, and seller descriptions from Bring a Trailer; data cleaned and structured into CSVs |
 
@@ -151,44 +150,87 @@ How an image and seller text move through the pipeline in a single request:
 
 ## Running Locally
 
-### Prerequisites
+> **This app is not hosted online.** The ML models (CLIP + SentenceTransformer + PyTorch) require ~2–3 GB of RAM at runtime, which makes cloud hosting prohibitively expensive. Run it on your own machine instead — it works great locally.
 
-- Python 3.10+
-- A Gemini API key ([get one free at Google AI Studio](https://aistudio.google.com/apikey))
+### System Requirements
 
-### Setup
+- Python 3.10 or 3.11
+- **4 GB RAM minimum** (models load ~800 MB into memory at startup)
+- A free Gemini API key — [get one at Google AI Studio](https://aistudio.google.com/apikey)
+
+### 1. Clone the repo
 
 ```bash
-# Clone the repo
-git clone https://github.com/your-username/porsche-appreciation-predictor.git
+git clone https://github.com/petpeevephobia/porsche-appreciation-predictor.git
 cd porsche-appreciation-predictor
-
-# Create and activate a virtual environment
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS / Linux
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set your Gemini API key
-cp .env.example .env
-# Then open .env and paste your key:  GEMINI_API_KEY=your_key_here
 ```
 
-### Run
+### 2. Create and activate a virtual environment
+
+```bash
+python -m venv venv
+```
+
+**Windows:**
+```bash
+venv\Scripts\activate
+```
+
+**macOS / Linux:**
+```bash
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+PyTorch must be installed separately first (CPU-only build, ~700 MB):
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+```
+
+> This will take several minutes on first install. Total download is ~1.5 GB.
+
+### 4. Add your Gemini API key
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and set your key:
+
+```
+GEMINI_API_KEY=your_key_here
+```
+
+### 5. Place the data files
+
+The `project/data/` folder is not included in the repo (too large for git). You need:
+
+```
+project/data/
+├── csv/
+│   ├── porsche_data.csv        # 1,234 current listings
+│   └── years_ago.csv           # 5,000+ BaT 2020-2022 sold records
+├── qdrant_db/                  # On-disk Qdrant vector index
+├── porsche_model.pkl           # Trained Random Forest
+└── porsche_encoder.pkl         # Fitted OneHotEncoder
+```
+
+Contact the repo owner to obtain these files.
+
+### 6. Run the app
 
 ```bash
 python app.py
 ```
 
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000) in your browser.
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080) in your browser.
 
-> **First boot takes ~60 seconds** while CLIP and SentenceTransformer load into memory. Subsequent requests are fast.
+> **First boot takes 30–90 seconds** while CLIP and SentenceTransformer load into memory. You will see progress printed in the terminal. Subsequent requests are fast once the models are loaded.
+
+---
 
 ### Notebooks (optional)
 
