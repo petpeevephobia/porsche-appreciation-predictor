@@ -24,6 +24,81 @@ load_dotenv()
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, 'project', 'data')
 
+# #region agent log
+_dbg_pkl_m = os.path.join(DATA, 'porsche_model.pkl')
+_dbg_pkl_e = os.path.join(DATA, 'porsche_encoder.pkl')
+try:
+    _dbg_pkl_names = [f for f in os.listdir(DATA) if f.endswith('.pkl')]
+except FileNotFoundError:
+    _dbg_pkl_names = ['<DATA_DIR_MISSING>']
+_dbg_payload = {
+    'sessionId': '08e1f3',
+    'runId': 'pre-fix',
+    'hypothesisId': 'H1',
+    'location': 'app.py:after_DATA',
+    'message': 'paths and pickle presence',
+    'data': {
+        'ROOT': ROOT,
+        'DATA': DATA,
+        'cwd': os.getcwd(),
+        'model_pkl_exists': os.path.exists(_dbg_pkl_m),
+        'encoder_pkl_exists': os.path.exists(_dbg_pkl_e),
+        'pkl_basenames_in_DATA': _dbg_pkl_names,
+        'hypothesis_notes': 'H1=artifacts never built; H2=wrong ROOT/DATA; H3=rename mismatch; H4=ignored/gitignored',
+    },
+    'timestamp': int(__import__('time').time() * 1000),
+}
+try:
+    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f:
+        _dbg_f.write(json.dumps(_dbg_payload) + '\n')
+except OSError:
+    pass
+# #endregion
+
+_missing_required = [p for p in (_dbg_pkl_m, _dbg_pkl_e) if not os.path.exists(p)]
+if _missing_required:
+    # #region agent log
+    _dbg_miss = {
+        'sessionId': '08e1f3',
+        'runId': 'post-fix',
+        'hypothesisId': 'VERIFY',
+        'location': 'app.py:missing_required_pkl',
+        'message': 'fail-fast exit before heavy model load',
+        'data': {'missing_paths': _missing_required},
+        'timestamp': int(__import__('time').time() * 1000),
+    }
+    try:
+        with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fm:
+            _dbg_fm.write(json.dumps(_dbg_miss) + '\n')
+    except OSError:
+        pass
+    # #endregion
+    print('\nMissing required trained model files:')
+    for _p in _missing_required:
+        print(f'  - {_p}')
+    print(
+        '\nGenerate them by running `project/notebooks/02_preprocessing_and_training.ipynb` '
+        '(pickle outputs go under project/data/). See PORTABILITY.md.\n'
+    )
+    sys.exit(1)
+
+# #region agent log
+_dbg_ok = {
+    'sessionId': '08e1f3',
+    'runId': 'post-fix',
+    'hypothesisId': 'VERIFY',
+    'location': 'app.py:required_pkl_ok',
+    'message': 'both sklearn pickle paths exist; continuing startup',
+    'data': {'model': _dbg_pkl_m, 'encoder': _dbg_pkl_e},
+    'timestamp': int(__import__('time').time() * 1000),
+}
+try:
+    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fok:
+        _dbg_fok.write(json.dumps(_dbg_ok) + '\n')
+except OSError:
+    pass
+# #endregion
+
 from historical_matcher import HistoricalMatcher
 
 # ── Load all models once at startup ───────────────────────────────────────────
@@ -38,6 +113,24 @@ print('  SentenceTransformer ready')
 
 qdrant = QdrantClient(path=os.path.join(DATA, 'qdrant_db'))
 print('  Qdrant ready')
+
+# #region agent log
+_dbg_open_path = os.path.join(DATA, 'porsche_model.pkl')
+_dbg_payload2 = {
+    'sessionId': '08e1f3',
+    'runId': 'pre-fix',
+    'hypothesisId': 'H2',
+    'location': 'app.py:before_porsche_model_open',
+    'message': 'immediately before model pickle open',
+    'data': {'open_path': _dbg_open_path, 'exists': os.path.exists(_dbg_open_path)},
+    'timestamp': int(__import__('time').time() * 1000),
+}
+try:
+    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f2:
+        _dbg_f2.write(json.dumps(_dbg_payload2) + '\n')
+except OSError:
+    pass
+# #endregion
 
 with open(os.path.join(DATA, 'porsche_model.pkl'), 'rb') as f:
     appreciation_model = pickle.load(f)
