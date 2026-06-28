@@ -6,7 +6,7 @@ load_dotenv()
 
 # Gemini Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 
 # CSV Data Paths (relative to repo root: project/data/csv/)
 _PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
