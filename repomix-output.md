@@ -33,40 +33,62 @@ The content is organized as follows:
 - Files are sorted by Git change count (files with more changes are at the bottom)
 
 # Directory Structure
-```
-_copy-me/csv/porsche_data.csv
-_copy-me/csv/years_ago.csv
-_copy-me/qdrant_db/.lock
-_copy-me/qdrant_db/collection/porsche_images/storage.sqlite
-_copy-me/qdrant_db/collection/porsche_text/storage.sqlite
+````
+_copy-me/
+  csv/
+    porsche_data.csv
+    years_ago.csv
+  qdrant_db/
+    collection/
+      porsche_images/
+        storage.sqlite
+      porsche_text/
+        storage.sqlite
+    .lock
+graphs/
+  bar_which-model-appreciates-the-most.png
+  box_does-excellent-condition-command-higher-prices.png
+  distribution_image_counts.png
+  feature_importance.jpg
+  heatmap_correlation.png
+  histogram_are-newer-or-older-porsches-in-my-dataset.png
+  linear_regression_confusion_matrix.png
+  linear_regression_roc.png
+  random_forest_confusion_matrix.png
+  random_forest_roc.png
+  scatter_do-high-mileage-cars-depreciate.png
+project/
+  data/
+    csv/
+      years_ago.csv
+    qdrant_db/
+      collection/
+        porsche_images/
+          storage.sqlite
+        porsche_text/
+          storage.sqlite
+      .lock
+  notebooks/
+    01_eda.ipynb
+    02_preprocessing_and_training.ipynb
+    03_multimodal_preprocessing.ipynb
+    04_valuation_pipeline.ipynb
+static/
+  assets/
+    HelveticaNeueRoman.otf
+  style.css
+templates/
+  index.html
 .env.example
 .gitignore
 app.py
 condition_analyzer.py
 config.py
-graphs/bar_which-model-appreciates-the-most.png
-graphs/box_does-excellent-condition-command-higher-prices.png
-graphs/distribution_image_counts.png
-graphs/feature_importance.jpg
-graphs/heatmap_correlation.png
-graphs/histogram_are-newer-or-older-porsches-in-my-dataset.png
-graphs/scatter_do-high-mileage-cars-depreciate.png
 historical_matcher.py
 PORTABILITY.md
-project/data/csv/years_ago.csv
-project/data/qdrant_db/.lock
-project/data/qdrant_db/collection/porsche_images/storage.sqlite
-project/data/qdrant_db/collection/porsche_text/storage.sqlite
-project/notebooks/01_eda.ipynb
-project/notebooks/02_preprocessing_and_training.ipynb
-project/notebooks/03_multimodal_preprocessing.ipynb
-project/notebooks/04_valuation_pipeline.ipynb
 README.md
 requirements.txt
-static/assets/HelveticaNeueRoman.otf
-static/style.css
-templates/index.html
-```
+````
 
 # Files
 
@@ -6684,843 +6706,6 @@ y05220,1999,911,56000,Fair,23222,2022-12-30,https://bringatrailer.com/listing/19
 tmp lock file
 ````
 
-## File: .env.example
-````
-# Porsche Scraper Configuration
-# Copy this file to .env and fill in your values.
-
-# Get a free API key at https://aistudio.google.com/apikey
-GEMINI_API_KEY=your_gemini_api_key_here
-````
-
-## File: condition_analyzer.py
-````python
-"""Gemini integration for analyzing listing condition."""
-import google.genai as genai
-import logging
-import config
-import time
-import re
-
-logger = logging.getLogger(__name__)
-
-
-class ConditionAnalyzer:
-    """Uses Gemini to analyze listing descriptions and classify condition."""
-
-    def __init__(self):
-        """Initialize Gemini client."""
-        if not config.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
-        self.client = genai.Client(api_key=config.GEMINI_API_KEY)
-        self.model = config.GEMINI_MODEL
-
-    def analyze_condition(self, description):
-        """
-        Analyze listing description and classify condition.
-
-        Args:
-            description: The listing description text
-
-        Returns:
-            str: "Excellent", "Good", or "Fair"
-        """
-        if not description or len(description.strip()) == 0:
-            logger.warning("Empty description provided, defaulting to 'Good'")
-            return "Good"
-
-        prompt = f"""Analyze the following Porsche listing description and classify the vehicle's condition as one of three categories: Excellent, Good, or Fair.
-
-Consider factors such as:
-- Overall condition mentions (pristine, excellent, good, fair, needs work, etc.)
-- Maintenance history
-- Wear and tear indicators
-- Restoration status
-- Damage or issues mentioned
-- Overall presentation quality
-- Missing parts indicators: words like "stripped", "missing", "removed", "absent", "gone", "not included", "without", "lacks"
-- Broken/damaged parts indicators: words like "broken", "cracked", "damaged", "bent", "dented", "faulty", "non-functional", "not working", "inoperable", "seized", "worn out"
-- Rust/corrosion indicators: words like "rust", "rusty", "corrosion", "corroded", "oxidized", "rust holes", "rust damage"
-- Mismatched parts indicators: words like "mismatched", "non-matching", "incorrect", "wrong", "replacement", "aftermarket", "non-original"
-- Incomplete/partial indicators: words like "incomplete", "partial", "unfinished", "project", "needs assembly", "disassembled", "taken apart"
-- Structural issues: words like "frame damage", "structural rust", "bent frame", "collision damage", "accident damage"
-
-Pay special attention to negative indicators. A listing with missing parts, broken components, significant rust, or structural issues should be classified as "Fair" or "Good" at best, even if other aspects seem positive.
-
-Return ONLY one word: Excellent, Good, or Fair.
-
-Description:
-{description[:2000]}
-
-Condition:"""
-
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-            )
-            condition = response.text.strip()
-
-            condition_lower = condition.lower()
-            if 'excellent' in condition_lower:
-                return "Excellent"
-            elif 'good' in condition_lower:
-                return "Good"
-            elif 'fair' in condition_lower:
-                return "Fair"
-            else:
-                logger.warning(f"Unexpected condition response: {condition}, defaulting to 'Good'")
-                return "Good"
-
-        except Exception as e:
-            logger.error(f"Error analyzing condition: {e}")
-            return "Good"
-
-    def analyze_batch(self, descriptions, delay=0.5):
-        """
-        Analyze multiple descriptions with rate limiting.
-
-        Args:
-            descriptions: List of description strings
-            delay: Seconds to wait between API calls
-
-        Returns:
-            list: List of condition classifications
-        """
-        conditions = []
-        for i, desc in enumerate(descriptions):
-            if i > 0:
-                time.sleep(delay)
-            condition = self.analyze_condition(desc)
-            conditions.append(condition)
-        return conditions
-
-    def analyze_batch_parallel(self, descriptions):
-        """
-        Analyze multiple descriptions efficiently using a single prompt.
-
-        Args:
-            descriptions: List of description strings
-
-        Returns:
-            list: List of condition classifications
-        """
-        if not descriptions:
-            return []
-
-        descriptions_text = ""
-        for i, desc in enumerate(descriptions, 1):
-            desc_limited = desc[:1500] if desc else ""
-            descriptions_text += f"\n\nListing {i}:\n{desc_limited}\n---"
-
-        prompt = f"""Analyze the following Porsche listing descriptions and classify each vehicle's condition as one of three categories: Excellent, Good, or Fair.
-
-For each listing, consider factors such as:
-- Overall condition mentions (pristine, excellent, good, fair, needs work, etc.)
-- Maintenance history
-- Wear and tear indicators
-- Restoration status
-- Damage or issues mentioned
-- Overall presentation quality
-- Missing parts indicators: words like "stripped", "missing", "removed", "absent", "gone", "not included", "without", "lacks"
-- Broken/damaged parts indicators: words like "broken", "cracked", "damaged", "bent", "dented", "faulty", "non-functional", "not working", "inoperable", "seized", "worn out"
-- Rust/corrosion indicators: words like "rust", "rusty", "corrosion", "corroded", "oxidized", "rust holes", "rust damage"
-- Mismatched parts indicators: words like "mismatched", "non-matching", "incorrect", "wrong", "replacement", "aftermarket", "non-original"
-- Incomplete/partial indicators: words like "incomplete", "partial", "unfinished", "project", "needs assembly", "disassembled", "taken apart"
-- Structural issues: words like "frame damage", "structural rust", "bent frame", "collision damage", "accident damage"
-
-Pay special attention to negative indicators. A listing with missing parts, broken components, significant rust, or structural issues should be classified as "Fair" or "Good" at best, even if other aspects seem positive.
-
-Return your analysis as a numbered list with exactly one word per listing: Excellent, Good, or Fair.
-
-Listings:{descriptions_text}
-
-Respond with only the conditions, one per line, numbered 1, 2, 3, etc."""
-
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-            )
-            result_text = response.text.strip()
-
-            conditions = []
-            lines = result_text.split('\n')
-            for line in lines:
-                line = line.strip()
-                line = re.sub(r'^\d+[\.\)]\s*', '', line, flags=re.IGNORECASE)
-                line_lower = line.lower()
-                if 'excellent' in line_lower:
-                    conditions.append("Excellent")
-                elif 'good' in line_lower:
-                    conditions.append("Good")
-                elif 'fair' in line_lower:
-                    conditions.append("Fair")
-                else:
-                    conditions.append("Good")
-
-            while len(conditions) < len(descriptions):
-                conditions.append("Good")
-
-            return conditions[:len(descriptions)]
-
-        except Exception as e:
-            logger.error(f"Error in batch analysis: {e}")
-            return self.analyze_batch(descriptions)
-````
-
-## File: config.py
-````python
-"""Configuration settings for the Porsche scraper."""
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Gemini Configuration
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
-
-# CSV Data Paths (relative to repo root: project/data/csv/)
-_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA_CSV_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "csv", "porsche_data.csv")
-YEARS_AGO_CSV_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "csv", "years_ago.csv")
-
-# Column names for the main data CSV
-COLUMNS = ["model_year", "model_type", "mileage", "condition", "price_now", "price_3_years_ago", "appreciated", "source"]
-
-# Column names for the years_ago CSV (historical 2020-2022 listings)
-YEARS_AGO_COLUMNS = ["model_year", "model_type", "mileage", "condition", "sale_price", "sale_date", "source"]
-
-# Scraper Configuration
-BASE_URL = "https://bringatrailer.com"
-REQUEST_DELAY = 1  # Seconds between requests to be respectful
-MAX_RETRIES = 3
-
-# Image Scraper Configuration
-IMAGE_SAVE_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "images")
-MAX_IMAGES_PER_LISTING = 12
-
-# Description Scraper Configuration
-DESCRIPTION_SAVE_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "descriptions")
-````
-
-## File: historical_matcher.py
-````python
-"""Historical price matcher for finding similar BaT 2022 sold listings."""
-import logging
-import os
-import statistics
-import time
-import pandas as pd
-from condition_analyzer import ConditionAnalyzer
-import config
-
-logger = logging.getLogger(__name__)
-
-
-class HistoricalMatcher:
-    """Matches 2025 listings with 2020-2022 BaT sold listings using similarity rules."""
-
-    def __init__(self):
-        """Initialize the matcher with condition analyzer."""
-        self._scraper = None
-        self.condition_analyzer = ConditionAnalyzer()
-        self.historical_listings = []
-        os.makedirs(os.path.dirname(config.YEARS_AGO_CSV_PATH), exist_ok=True)
-
-    @property
-    def scraper(self):
-        if self._scraper is None:
-            from scraper import PorscheScraper
-            self._scraper = PorscheScraper()
-        return self._scraper
-
-    def load_historical_listings_from_csv(self):
-        """
-        Load historical 2020-2022 listings from the years_ago CSV file.
-
-        Returns:
-            list: List of historical listings, or empty list if file doesn't exist or is empty
-        """
-        if not os.path.exists(config.YEARS_AGO_CSV_PATH):
-            logger.warning(f"CSV not found at {config.YEARS_AGO_CSV_PATH}, will need to scrape")
-            return []
-
-        try:
-            df = pd.read_csv(config.YEARS_AGO_CSV_PATH)
-            if df.empty:
-                logger.info("years_ago CSV is empty, will need to scrape")
-                return []
-
-            historical_listings = []
-            for _, row in df.iterrows():
-                listing = {col: (str(row[col]).strip() if pd.notna(row[col]) else '') for col in config.YEARS_AGO_COLUMNS if col in df.columns}
-
-                # Convert sale_price to int if possible
-                try:
-                    if listing.get('sale_price'):
-                        listing['sale_price'] = int(str(listing['sale_price']).replace(',', '').replace('$', ''))
-                except (ValueError, AttributeError):
-                    pass
-
-                # Convert mileage to int if possible
-                try:
-                    if listing.get('mileage'):
-                        listing['mileage'] = int(str(listing['mileage']).replace(',', ''))
-                except (ValueError, AttributeError):
-                    pass
-
-                sale_date = listing.get('sale_date', '')
-                if sale_date and (sale_date.startswith('2020') or sale_date.startswith('2021') or sale_date.startswith('2022')):
-                    historical_listings.append(listing)
-                else:
-                    logger.debug(f"Skipping listing with sale_date '{sale_date}' (not 2020-2022)")
-
-            logger.info(f"Loaded {len(historical_listings)} historical listings from CSV")
-            self.historical_listings = historical_listings
-            return historical_listings
-
-        except Exception as e:
-            logger.error(f"Error loading historical listings from CSV: {e}")
-            return []
-
-    def load_historical_listings_from_sheet(self):
-        """Alias for load_historical_listings_from_csv (backwards compatibility)."""
-        return self.load_historical_listings_from_csv()
-
-    def _get_existing_sources(self):
-        """
-        Get set of existing source URLs from the years_ago CSV to avoid duplicates.
-
-        Returns:
-            set: Set of existing source URLs
-        """
-        existing_sources = set()
-        if not os.path.exists(config.YEARS_AGO_CSV_PATH):
-            return existing_sources
-        try:
-            df = pd.read_csv(config.YEARS_AGO_CSV_PATH)
-            if 'source' in df.columns:
-                existing_sources = set(df['source'].dropna().astype(str).str.strip())
-        except Exception as e:
-            logger.warning(f"Error reading existing sources: {e}")
-        return existing_sources
-
-    def save_historical_listings_batch(self, historical_listings):
-        """
-        Save a batch of historical listings to the years_ago CSV.
-
-        Args:
-            historical_listings: List of historical listing dicts to save
-        """
-        existing_sources = self._get_existing_sources()
-
-        rows_to_add = []
-        for listing in historical_listings:
-            source = listing.get('source', '')
-            if source and source not in existing_sources:
-                rows_to_add.append({col: str(listing.get(col, '')) for col in config.YEARS_AGO_COLUMNS})
-                existing_sources.add(source)
-
-        if not rows_to_add:
-            logger.debug("No new listings to save (all already exist in CSV)")
-            return
-
-        new_df = pd.DataFrame(rows_to_add, columns=config.YEARS_AGO_COLUMNS)
-        write_header = not os.path.exists(config.YEARS_AGO_CSV_PATH)
-        new_df.to_csv(config.YEARS_AGO_CSV_PATH, mode='a', header=write_header, index=False)
-        logger.info(f"Saved {len(rows_to_add)} new listings to {config.YEARS_AGO_CSV_PATH}")
-
-    def scrape_2022_listings(self, search_url, force_scrape=False):
-        """
-        Scrape BaT 2020-2022 sold listings from a search URL, or load from CSV if available.
-        Saves listings in batches of 10 to the years_ago CSV.
-
-        Args:
-            search_url: URL to BaT search results page (should filter for sold listings)
-            force_scrape: If True, force scraping even if data exists in CSV
-
-        Returns:
-            list: List of dicts with keys: model_year, model_type, mileage, condition, sale_price, sale_date
-        """
-        if not force_scrape:
-            loaded_listings = self.load_historical_listings_from_csv()
-            if loaded_listings:
-                logger.info(f"Using {len(loaded_listings)} historical listings from CSV")
-                return loaded_listings
-
-        logger.info(f"Scraping 2020-2022 sold listings from: {search_url}")
-
-        listing_urls = self.scraper.get_all_listing_urls_from_auction_results(search_url)
-        logger.info(f"Found {len(listing_urls)} listing URLs to process")
-
-        existing_sources = self._get_existing_sources()
-
-        historical_listings = []
-        batch_buffer = []
-        batch_size = 10
-        failed = 0
-        accepted_count = 0
-
-        for i, listing_url in enumerate(listing_urls, 1):
-            logger.info(f"Scraping sold listing {i}/{len(listing_urls)}: {listing_url}")
-            try:
-                listing_data = self.scraper.scrape_sold_listing(listing_url)
-                if listing_data:
-                    if listing_data.get('should_exclude', False):
-                        logger.info(f"Skipping listing with excluded keywords: {listing_url}")
-                        failed += 1
-                        continue
-
-                    sale_date = listing_data.get('sale_date', '')
-                    logger.debug(f"Listing {i}: sale_date='{sale_date}', model_year={listing_data.get('model_year')}, model_type={listing_data.get('model_type')}")
-
-                    if sale_date and (sale_date.startswith('2020') or sale_date.startswith('2021') or sale_date.startswith('2022')):
-                        source = listing_data.get('source', '')
-                        if source in existing_sources:
-                            logger.debug(f"Skipping listing already in CSV: {listing_url}")
-                            continue
-
-                        if listing_data.get('is_premium', False):
-                            condition = "Excellent"
-                        else:
-                            description = listing_data.get('description', '')
-                            condition = self.condition_analyzer.analyze_condition(description) if description else "Fair"
-
-                        historical_listing = {
-                            'model_year': listing_data.get('model_year', ''),
-                            'model_type': listing_data.get('model_type', ''),
-                            'mileage': listing_data.get('mileage', ''),
-                            'condition': condition,
-                            'sale_price': listing_data.get('sale_price', ''),
-                            'sale_date': sale_date,
-                            'source': listing_data.get('source', '')
-                        }
-                        historical_listings.append(historical_listing)
-                        batch_buffer.append(historical_listing)
-                        existing_sources.add(source)
-                        accepted_count += 1
-
-                        if len(batch_buffer) >= batch_size:
-                            logger.info(f"Saving batch of {len(batch_buffer)} listings to CSV...")
-                            self.save_historical_listings_batch(batch_buffer)
-                            batch_buffer = []
-                    else:
-                        logger.info(f"Skipping listing with sale_date '{sale_date}' (not 2020-2022): {listing_url}")
-                else:
-                    logger.warning(f"Failed to scrape listing: {listing_url}")
-                    failed += 1
-
-                time.sleep(config.REQUEST_DELAY)
-            except Exception as e:
-                logger.error(f"Error scraping listing {listing_url}: {e}")
-                failed += 1
-                continue
-
-        if batch_buffer:
-            logger.info(f"Saving final batch of {len(batch_buffer)} listings to CSV...")
-            self.save_historical_listings_batch(batch_buffer)
-
-        logger.info(f"Scraped {len(historical_listings)} 2020-2022 sold listings successfully")
-        logger.info(f"Summary: {len(listing_urls)} total URLs found, {accepted_count} had valid 2020-2022 sale dates, {failed} failed/excluded")
-        self.historical_listings = historical_listings
-
-        return historical_listings
-
-    def filter_similar_listings(self, target_listing):
-        """
-        Filter historical listings that match similarity criteria.
-
-        Args:
-            target_listing: dict with keys: model_year, model_type, mileage, condition
-
-        Returns:
-            list: Filtered historical listings that match criteria
-        """
-        target_model_type = target_listing.get('model_type', '').strip()
-        target_year_str = target_listing.get('model_year', '').strip()
-        target_mileage = target_listing.get('mileage', '')
-        target_condition = target_listing.get('condition', '').strip()
-
-        try:
-            target_year = int(target_year_str) if target_year_str else None
-        except ValueError:
-            target_year = None
-
-        try:
-            if isinstance(target_mileage, str):
-                target_mileage = int(target_mileage.replace(',', '')) if target_mileage else 0
-            elif not target_mileage:
-                target_mileage = 0
-        except (ValueError, AttributeError):
-            target_mileage = 0
-
-        filtered = []
-
-        for listing in self.historical_listings:
-            listing_model_type = listing.get('model_type', '').strip()
-            if listing_model_type != target_model_type:
-                continue
-
-            listing_year_str = listing.get('model_year', '').strip()
-            try:
-                listing_year = int(listing_year_str) if listing_year_str else None
-            except ValueError:
-                continue
-
-            if target_year is None or listing_year is None:
-                continue
-
-            if abs(target_year - listing_year) > 1:
-                continue
-
-            listing_mileage = listing.get('mileage', '')
-            try:
-                if isinstance(listing_mileage, str):
-                    listing_mileage = int(listing_mileage.replace(',', '')) if listing_mileage else 0
-                elif not listing_mileage:
-                    listing_mileage = 0
-            except (ValueError, AttributeError):
-                listing_mileage = 0
-
-            if target_mileage == 0 and listing_mileage == 0:
-                pass
-            elif target_mileage == 0 or listing_mileage == 0:
-                continue
-            else:
-                mileage_diff = abs(target_mileage - listing_mileage) / max(target_mileage, listing_mileage)
-                if mileage_diff > 0.15:
-                    continue
-
-            listing_condition = listing.get('condition', '').strip()
-            if listing_condition != target_condition:
-                continue
-
-            filtered.append(listing)
-
-        return filtered
-
-    def calculate_similarity_score(self, target_listing, comp_listing):
-        """
-        Calculate similarity score between target and comp listing.
-        Lower score = better match.
-
-        Args:
-            target_listing: dict with model_year, mileage, condition
-            comp_listing: dict with model_year, mileage, condition, sale_price
-
-        Returns:
-            float: Similarity score (lower is better)
-        """
-        target_year_str = target_listing.get('model_year', '').strip()
-        comp_year_str = comp_listing.get('model_year', '').strip()
-
-        try:
-            target_year = int(target_year_str) if target_year_str else 0
-            comp_year = int(comp_year_str) if comp_year_str else 0
-            year_diff = abs(target_year - comp_year)
-        except ValueError:
-            year_diff = 10
-
-        target_mileage = target_listing.get('mileage', '')
-        comp_mileage = comp_listing.get('mileage', '')
-
-        try:
-            if isinstance(target_mileage, str):
-                target_mileage = int(target_mileage.replace(',', '')) if target_mileage else 0
-            elif not target_mileage:
-                target_mileage = 0
-
-            if isinstance(comp_mileage, str):
-                comp_mileage = int(comp_mileage.replace(',', '')) if comp_mileage else 0
-            elif not comp_mileage:
-                comp_mileage = 0
-
-            if target_mileage == 0 and comp_mileage == 0:
-                mileage_diff = 0
-            elif target_mileage == 0 or comp_mileage == 0:
-                mileage_diff = 1.0
-            else:
-                mileage_diff = abs(target_mileage - comp_mileage) / max(target_mileage, comp_mileage)
-        except (ValueError, AttributeError):
-            mileage_diff = 1.0
-
-        target_condition = target_listing.get('condition', '').strip()
-        comp_condition = comp_listing.get('condition', '').strip()
-        condition_penalty = 0 if target_condition == comp_condition else 1
-
-        score = (year_diff * 1.0) + (mileage_diff * 2.0) + (condition_penalty * 3.0)
-        return score
-
-    def filter_loose_matches(self, target_listing, max_year_diff=5, max_mileage_pct=0.5, allow_condition_mismatch=True):
-        """
-        Filter historical listings with looser matching criteria for estimation.
-
-        Args:
-            target_listing: dict with keys: model_year, model_type, mileage, condition
-            max_year_diff: Maximum year difference allowed (default: 5)
-            max_mileage_pct: Maximum mileage percentage difference (default: 0.5 = 50%)
-            allow_condition_mismatch: Whether to allow different conditions (default: True)
-
-        Returns:
-            list: Filtered historical listings that match loose criteria
-        """
-        target_model_type = target_listing.get('model_type', '').strip()
-        target_year_str = target_listing.get('model_year', '').strip()
-        target_mileage = target_listing.get('mileage', '')
-        target_condition = target_listing.get('condition', '').strip()
-
-        try:
-            target_year = int(target_year_str) if target_year_str else None
-        except ValueError:
-            target_year = None
-
-        try:
-            if isinstance(target_mileage, str):
-                target_mileage = int(target_mileage.replace(',', '')) if target_mileage else 0
-            elif not target_mileage:
-                target_mileage = 0
-        except (ValueError, AttributeError):
-            target_mileage = 0
-
-        filtered = []
-
-        for listing in self.historical_listings:
-            listing_model_type = listing.get('model_type', '').strip()
-            if listing_model_type != target_model_type:
-                continue
-
-            listing_year_str = listing.get('model_year', '').strip()
-            try:
-                listing_year = int(listing_year_str) if listing_year_str else None
-            except ValueError:
-                continue
-
-            if target_year is not None and listing_year is not None:
-                if abs(target_year - listing_year) > max_year_diff:
-                    continue
-
-            listing_mileage = listing.get('mileage', '')
-            try:
-                if isinstance(listing_mileage, str):
-                    listing_mileage = int(listing_mileage.replace(',', '')) if listing_mileage else 0
-                elif not listing_mileage:
-                    listing_mileage = 0
-            except (ValueError, AttributeError):
-                listing_mileage = 0
-
-            if target_mileage > 0 and listing_mileage > 0:
-                mileage_diff = abs(target_mileage - listing_mileage) / max(target_mileage, listing_mileage)
-                if mileage_diff > max_mileage_pct:
-                    continue
-
-            if not allow_condition_mismatch:
-                listing_condition = listing.get('condition', '').strip()
-                if listing_condition != target_condition:
-                    continue
-
-            filtered.append(listing)
-
-        return filtered
-
-    def calculate_estimated_price(self, target_listing):
-        """
-        Calculate estimated price using progressively looser matching criteria.
-        Used as fallback when strict matching returns insufficient_data.
-
-        Args:
-            target_listing: dict with model_year, model_type, mileage, condition
-
-        Returns:
-            int: Estimated price, or None if no matches found even with loose criteria
-        """
-        criteria_levels = [
-            {'max_year_diff': 3, 'max_mileage_pct': 0.3, 'allow_condition_mismatch': False},
-            {'max_year_diff': 5, 'max_mileage_pct': 0.5, 'allow_condition_mismatch': True},
-            {'max_year_diff': 10, 'max_mileage_pct': 1.0, 'allow_condition_mismatch': True},
-            {'max_year_diff': 999, 'max_mileage_pct': 1.0, 'allow_condition_mismatch': True},
-        ]
-
-        for level, criteria in enumerate(criteria_levels, 1):
-            loose_matches = self.filter_loose_matches(target_listing, **criteria)
-
-            if len(loose_matches) == 0:
-                continue
-
-            scored_listings = []
-            for comp in loose_matches:
-                score = self.calculate_similarity_score(target_listing, comp)
-                sale_price = comp.get('sale_price', '')
-                if sale_price and isinstance(sale_price, (int, str)):
-                    try:
-                        if isinstance(sale_price, str):
-                            sale_price = int(sale_price.replace(',', '').replace('$', ''))
-                        scored_listings.append({'listing': comp, 'score': score, 'sale_price': sale_price})
-                    except (ValueError, AttributeError):
-                        continue
-
-            if len(scored_listings) == 0:
-                continue
-
-            scored_listings.sort(key=lambda x: x['score'])
-            top_matches = scored_listings[:5]
-            prices = [item['sale_price'] for item in top_matches]
-
-            if len(prices) == 0:
-                continue
-
-            if len(prices) == 1:
-                estimate = prices[0]
-            elif len(prices) == 2:
-                estimate = int(sum(prices) / 2)
-            else:
-                estimate = int(statistics.median(prices))
-
-            logger.info(f"Estimated price using level {level} criteria: {estimate} (from {len(prices)} matches)")
-            return estimate
-
-        return None
-
-    def calculate_price_3_years_ago(self, target_listing):
-        """
-        Calculate price_3_years_ago for a target listing by finding best matches.
-        Falls back to estimation if strict matching fails.
-
-        Args:
-            target_listing: dict with model_year, model_type, mileage, condition
-
-        Returns:
-            str or int: Sale price (int) if match found, estimated price if fallback used, "insufficient_data" if no matches
-        """
-        similar_listings = self.filter_similar_listings(target_listing)
-
-        if len(similar_listings) == 0:
-            logger.info("No strict matches found, attempting estimation with looser criteria...")
-            estimated_price = self.calculate_estimated_price(target_listing)
-            if estimated_price is not None:
-                return estimated_price
-            return "insufficient_data"
-
-        scored_listings = []
-        for comp in similar_listings:
-            score = self.calculate_similarity_score(target_listing, comp)
-            sale_price = comp.get('sale_price', '')
-            if sale_price and isinstance(sale_price, (int, str)):
-                try:
-                    if isinstance(sale_price, str):
-                        sale_price = int(sale_price.replace(',', '').replace('$', ''))
-                    scored_listings.append({'listing': comp, 'score': score, 'sale_price': sale_price})
-                except (ValueError, AttributeError):
-                    continue
-
-        if len(scored_listings) == 0:
-            logger.info("No valid prices in strict matches, attempting estimation...")
-            estimated_price = self.calculate_estimated_price(target_listing)
-            if estimated_price is not None:
-                return estimated_price
-            return "insufficient_data"
-
-        scored_listings.sort(key=lambda x: x['score'])
-
-        if len(scored_listings) == 1:
-            return scored_listings[0]['sale_price']
-
-        top_3 = scored_listings[:3]
-        prices = [item['sale_price'] for item in top_3]
-
-        if len(prices) == 1:
-            return prices[0]
-        elif len(prices) == 2:
-            return int(sum(prices) / 2)
-        else:
-            return int(statistics.median(prices))
-````
-
-## File: PORTABILITY.md
-````markdown
-# Portability Guide
-
-This project runs entirely locally — no cloud database, no paid API (beyond the Gemini free tier).
-Below is everything you need to move the project to a different PC.
-
-## What to copy
-
-| Item | Path | Why |
-|---|---|---|
-| Code | entire repo | All scripts, notebooks |
-| Historical CSV | `project/data/csv/years_ago.csv` | 2020-2022 BaT sold listings used at runtime |
-| Vector DB | `project/data/qdrant_db/` | Local Qdrant collections (image + text vectors) |
-| Trained model | `project/data/porsche_model.pkl` | Sklearn appreciation prediction model |
-| Encoder | `project/data/porsche_encoder.pkl` | Fitted OneHotEncoder used by the model |
-| API key | `.env` | Your `GEMINI_API_KEY` |
-
-> **Not needed at runtime:** `project/data/images/`, `project/data/descriptions/`, and `project/data/csv/porsche_data.csv` were only used during training. You do not need to copy them to run the app.
-
-## Step-by-step: set up on a new PC
-
-1. **Clone or copy the repo**
-   ```bash
-   git clone <your-repo-url>
-   # or unzip the repo archive
-   ```
-
-2. **Copy the data files** (not tracked by git — copy manually):
-   ```
-   project/data/qdrant_db/
-   project/data/csv/years_ago.csv
-   project/data/porsche_model.pkl
-   project/data/porsche_encoder.pkl
-   ```
-
-3. **Create your `.env` file**
-   ```bash
-   cp .env.example .env
-   # then edit .env and paste your GEMINI_API_KEY
-   ```
-   Get a free key at https://aistudio.google.com/apikey
-
-4. **Create and activate a virtual environment**
-   ```bash
-   python -m venv venv
-   # Windows:
-   venv\Scripts\activate
-   # macOS/Linux:
-   source venv/bin/activate
-   ```
-
-5. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-   > Note: `git+https://github.com/openai/CLIP.git` in requirements.txt installs the CLIP model
-   > directly from GitHub and requires `git` to be on your PATH.
-
-6. **Open the notebooks**
-   ```bash
-   jupyter notebook project/notebooks/
-   ```
-
-## What stays local (never in git)
-
-- `project/data/qdrant_db/` — vector database
-- `project/data/csv/years_ago.csv` — historical price data
-- `project/data/porsche_model.pkl` — trained model
-- `project/data/porsche_encoder.pkl` — fitted encoder
-- `.env` — API key
-
-These paths are already listed in `.gitignore`.
-
-## Ongoing costs
-
-| Service | Cost |
-|---|---|
-| Gemini API (free tier) | $0 — 1,500 requests/day free via Google AI Studio |
-| Data storage | $0 — local files only |
-| Vector DB (Qdrant local) | $0 — runs on disk |
-| Embeddings (CLIP + SentenceTransformers) | $0 — runs locally |
-````
-
 ## File: project/data/csv/years_ago.csv
 ````
 id,model_year,model_type,mileage,condition,sale_price,sale_date,source
@@ -13730,577 +12915,841 @@ tmp lock file
 }
 ````
 
-## File: .gitignore
+## File: .env.example
 ````
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Porsche Scraper Configuration
+# Copy this file to .env and fill in your values.
 
-# Virtual environments
-venv/
-scraper/venv/
-
-# Data files (too large for git)
-project/data/images/
-project/data/descriptions/
-/project/data/csv/porsche_data.csv
-
-# Model files
-*.pkl
-*.h5
-*.model
-
-# Log files
-*.log
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment variables
-.env
-*.json
-!package*.json
-
-
-
-
-
-# Environment variables
-.env
-
-# Google Sheets credentials
-*.json
-!package*.json
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
+# Get a free API key at https://aistudio.google.com/apikey
+GEMINI_API_KEY=your_gemini_api_key_here
 ````
 
-## File: app.py
+## File: condition_analyzer.py
 ````python
-import os
-import sys
-import re
-import json
-import pickle
-import tempfile
-
-import numpy as np
-import pandas as pd
-import torch
-import clip
-from collections import Counter
-from PIL import Image
-
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
-from sentence_transformers import SentenceTransformer
-from qdrant_client import QdrantClient
+"""Gemini integration for analyzing listing condition."""
 import google.genai as genai
+import logging
+import config
+import time
+import re
+
+logger = logging.getLogger(__name__)
+
+
+class ConditionAnalyzer:
+    """Uses Gemini to analyze listing descriptions and classify condition."""
+
+    def __init__(self):
+        """Initialize Gemini client."""
+        if not config.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY not found in environment variables")
+        self.client = genai.Client(api_key=config.GEMINI_API_KEY)
+        self.model = config.GEMINI_MODEL
+
+    def analyze_condition(self, description):
+        """
+        Analyze listing description and classify condition.
+
+        Args:
+            description: The listing description text
+
+        Returns:
+            str: "Excellent", "Good", or "Fair"
+        """
+        if not description or len(description.strip()) == 0:
+            logger.warning("Empty description provided, defaulting to 'Good'")
+            return "Good"
+
+        prompt = f"""Analyze the following Porsche listing description and classify the vehicle's condition as one of three categories: Excellent, Good, or Fair.
+
+Consider factors such as:
+- Overall condition mentions (pristine, excellent, good, fair, needs work, etc.)
+- Maintenance history
+- Wear and tear indicators
+- Restoration status
+- Damage or issues mentioned
+- Overall presentation quality
+- Missing parts indicators: words like "stripped", "missing", "removed", "absent", "gone", "not included", "without", "lacks"
+- Broken/damaged parts indicators: words like "broken", "cracked", "damaged", "bent", "dented", "faulty", "non-functional", "not working", "inoperable", "seized", "worn out"
+- Rust/corrosion indicators: words like "rust", "rusty", "corrosion", "corroded", "oxidized", "rust holes", "rust damage"
+- Mismatched parts indicators: words like "mismatched", "non-matching", "incorrect", "wrong", "replacement", "aftermarket", "non-original"
+- Incomplete/partial indicators: words like "incomplete", "partial", "unfinished", "project", "needs assembly", "disassembled", "taken apart"
+- Structural issues: words like "frame damage", "structural rust", "bent frame", "collision damage", "accident damage"
+
+Pay special attention to negative indicators. A listing with missing parts, broken components, significant rust, or structural issues should be classified as "Fair" or "Good" at best, even if other aspects seem positive.
+
+Return ONLY one word: Excellent, Good, or Fair.
+
+Description:
+{description[:2000]}
+
+Condition:"""
+
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
+            condition = response.text.strip()
+
+            condition_lower = condition.lower()
+            if 'excellent' in condition_lower:
+                return "Excellent"
+            elif 'good' in condition_lower:
+                return "Good"
+            elif 'fair' in condition_lower:
+                return "Fair"
+            else:
+                logger.warning(f"Unexpected condition response: {condition}, defaulting to 'Good'")
+                return "Good"
+
+        except Exception as e:
+            logger.error(f"Error analyzing condition: {e}")
+            return "Good"
+
+    def analyze_batch(self, descriptions, delay=0.5):
+        """
+        Analyze multiple descriptions with rate limiting.
+
+        Args:
+            descriptions: List of description strings
+            delay: Seconds to wait between API calls
+
+        Returns:
+            list: List of condition classifications
+        """
+        conditions = []
+        for i, desc in enumerate(descriptions):
+            if i > 0:
+                time.sleep(delay)
+            condition = self.analyze_condition(desc)
+            conditions.append(condition)
+        return conditions
+
+    def analyze_batch_parallel(self, descriptions):
+        """
+        Analyze multiple descriptions efficiently using a single prompt.
+
+        Args:
+            descriptions: List of description strings
+
+        Returns:
+            list: List of condition classifications
+        """
+        if not descriptions:
+            return []
+
+        descriptions_text = ""
+        for i, desc in enumerate(descriptions, 1):
+            desc_limited = desc[:1500] if desc else ""
+            descriptions_text += f"\n\nListing {i}:\n{desc_limited}\n---"
+
+        prompt = f"""Analyze the following Porsche listing descriptions and classify each vehicle's condition as one of three categories: Excellent, Good, or Fair.
+
+For each listing, consider factors such as:
+- Overall condition mentions (pristine, excellent, good, fair, needs work, etc.)
+- Maintenance history
+- Wear and tear indicators
+- Restoration status
+- Damage or issues mentioned
+- Overall presentation quality
+- Missing parts indicators: words like "stripped", "missing", "removed", "absent", "gone", "not included", "without", "lacks"
+- Broken/damaged parts indicators: words like "broken", "cracked", "damaged", "bent", "dented", "faulty", "non-functional", "not working", "inoperable", "seized", "worn out"
+- Rust/corrosion indicators: words like "rust", "rusty", "corrosion", "corroded", "oxidized", "rust holes", "rust damage"
+- Mismatched parts indicators: words like "mismatched", "non-matching", "incorrect", "wrong", "replacement", "aftermarket", "non-original"
+- Incomplete/partial indicators: words like "incomplete", "partial", "unfinished", "project", "needs assembly", "disassembled", "taken apart"
+- Structural issues: words like "frame damage", "structural rust", "bent frame", "collision damage", "accident damage"
+
+Pay special attention to negative indicators. A listing with missing parts, broken components, significant rust, or structural issues should be classified as "Fair" or "Good" at best, even if other aspects seem positive.
+
+Return your analysis as a numbered list with exactly one word per listing: Excellent, Good, or Fair.
+
+Listings:{descriptions_text}
+
+Respond with only the conditions, one per line, numbered 1, 2, 3, etc."""
+
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
+            result_text = response.text.strip()
+
+            conditions = []
+            lines = result_text.split('\n')
+            for line in lines:
+                line = line.strip()
+                line = re.sub(r'^\d+[\.\)]\s*', '', line, flags=re.IGNORECASE)
+                line_lower = line.lower()
+                if 'excellent' in line_lower:
+                    conditions.append("Excellent")
+                elif 'good' in line_lower:
+                    conditions.append("Good")
+                elif 'fair' in line_lower:
+                    conditions.append("Fair")
+                else:
+                    conditions.append("Good")
+
+            while len(conditions) < len(descriptions):
+                conditions.append("Good")
+
+            return conditions[:len(descriptions)]
+
+        except Exception as e:
+            logger.error(f"Error in batch analysis: {e}")
+            return self.analyze_batch(descriptions)
+````
+
+## File: historical_matcher.py
+````python
+"""Historical price matcher for finding similar BaT 2022 sold listings."""
+import logging
+import os
+import statistics
+import time
+import pandas as pd
+from condition_analyzer import ConditionAnalyzer
+import config
+
+logger = logging.getLogger(__name__)
+
+
+class HistoricalMatcher:
+    """Matches 2025 listings with 2020-2022 BaT sold listings using similarity rules."""
+
+    def __init__(self):
+        """Initialize the matcher with condition analyzer."""
+        self._scraper = None
+        self.condition_analyzer = ConditionAnalyzer()
+        self.historical_listings = []
+        os.makedirs(os.path.dirname(config.YEARS_AGO_CSV_PATH), exist_ok=True)
+
+    @property
+    def scraper(self):
+        if self._scraper is None:
+            from scraper import PorscheScraper
+            self._scraper = PorscheScraper()
+        return self._scraper
+
+    def load_historical_listings_from_csv(self):
+        """
+        Load historical 2020-2022 listings from the years_ago CSV file.
+
+        Returns:
+            list: List of historical listings, or empty list if file doesn't exist or is empty
+        """
+        if not os.path.exists(config.YEARS_AGO_CSV_PATH):
+            logger.warning(f"CSV not found at {config.YEARS_AGO_CSV_PATH}, will need to scrape")
+            return []
+
+        try:
+            df = pd.read_csv(config.YEARS_AGO_CSV_PATH)
+            if df.empty:
+                logger.info("years_ago CSV is empty, will need to scrape")
+                return []
+
+            historical_listings = []
+            for _, row in df.iterrows():
+                listing = {col: (str(row[col]).strip() if pd.notna(row[col]) else '') for col in config.YEARS_AGO_COLUMNS if col in df.columns}
+
+                # Convert sale_price to int if possible
+                try:
+                    if listing.get('sale_price'):
+                        listing['sale_price'] = int(str(listing['sale_price']).replace(',', '').replace('$', ''))
+                except (ValueError, AttributeError):
+                    pass
+
+                # Convert mileage to int if possible
+                try:
+                    if listing.get('mileage'):
+                        listing['mileage'] = int(str(listing['mileage']).replace(',', ''))
+                except (ValueError, AttributeError):
+                    pass
+
+                sale_date = listing.get('sale_date', '')
+                if sale_date and (sale_date.startswith('2020') or sale_date.startswith('2021') or sale_date.startswith('2022')):
+                    historical_listings.append(listing)
+                else:
+                    logger.debug(f"Skipping listing with sale_date '{sale_date}' (not 2020-2022)")
+
+            logger.info(f"Loaded {len(historical_listings)} historical listings from CSV")
+            self.historical_listings = historical_listings
+            return historical_listings
+
+        except Exception as e:
+            logger.error(f"Error loading historical listings from CSV: {e}")
+            return []
+
+    def load_historical_listings_from_sheet(self):
+        """Alias for load_historical_listings_from_csv (backwards compatibility)."""
+        return self.load_historical_listings_from_csv()
+
+    def _get_existing_sources(self):
+        """
+        Get set of existing source URLs from the years_ago CSV to avoid duplicates.
+
+        Returns:
+            set: Set of existing source URLs
+        """
+        existing_sources = set()
+        if not os.path.exists(config.YEARS_AGO_CSV_PATH):
+            return existing_sources
+        try:
+            df = pd.read_csv(config.YEARS_AGO_CSV_PATH)
+            if 'source' in df.columns:
+                existing_sources = set(df['source'].dropna().astype(str).str.strip())
+        except Exception as e:
+            logger.warning(f"Error reading existing sources: {e}")
+        return existing_sources
+
+    def save_historical_listings_batch(self, historical_listings):
+        """
+        Save a batch of historical listings to the years_ago CSV.
+
+        Args:
+            historical_listings: List of historical listing dicts to save
+        """
+        existing_sources = self._get_existing_sources()
+
+        rows_to_add = []
+        for listing in historical_listings:
+            source = listing.get('source', '')
+            if source and source not in existing_sources:
+                rows_to_add.append({col: str(listing.get(col, '')) for col in config.YEARS_AGO_COLUMNS})
+                existing_sources.add(source)
+
+        if not rows_to_add:
+            logger.debug("No new listings to save (all already exist in CSV)")
+            return
+
+        new_df = pd.DataFrame(rows_to_add, columns=config.YEARS_AGO_COLUMNS)
+        write_header = not os.path.exists(config.YEARS_AGO_CSV_PATH)
+        new_df.to_csv(config.YEARS_AGO_CSV_PATH, mode='a', header=write_header, index=False)
+        logger.info(f"Saved {len(rows_to_add)} new listings to {config.YEARS_AGO_CSV_PATH}")
+
+    def scrape_2022_listings(self, search_url, force_scrape=False):
+        """
+        Scrape BaT 2020-2022 sold listings from a search URL, or load from CSV if available.
+        Saves listings in batches of 10 to the years_ago CSV.
+
+        Args:
+            search_url: URL to BaT search results page (should filter for sold listings)
+            force_scrape: If True, force scraping even if data exists in CSV
+
+        Returns:
+            list: List of dicts with keys: model_year, model_type, mileage, condition, sale_price, sale_date
+        """
+        if not force_scrape:
+            loaded_listings = self.load_historical_listings_from_csv()
+            if loaded_listings:
+                logger.info(f"Using {len(loaded_listings)} historical listings from CSV")
+                return loaded_listings
+
+        logger.info(f"Scraping 2020-2022 sold listings from: {search_url}")
+
+        listing_urls = self.scraper.get_all_listing_urls_from_auction_results(search_url)
+        logger.info(f"Found {len(listing_urls)} listing URLs to process")
+
+        existing_sources = self._get_existing_sources()
+
+        historical_listings = []
+        batch_buffer = []
+        batch_size = 10
+        failed = 0
+        accepted_count = 0
+
+        for i, listing_url in enumerate(listing_urls, 1):
+            logger.info(f"Scraping sold listing {i}/{len(listing_urls)}: {listing_url}")
+            try:
+                listing_data = self.scraper.scrape_sold_listing(listing_url)
+                if listing_data:
+                    if listing_data.get('should_exclude', False):
+                        logger.info(f"Skipping listing with excluded keywords: {listing_url}")
+                        failed += 1
+                        continue
+
+                    sale_date = listing_data.get('sale_date', '')
+                    logger.debug(f"Listing {i}: sale_date='{sale_date}', model_year={listing_data.get('model_year')}, model_type={listing_data.get('model_type')}")
+
+                    if sale_date and (sale_date.startswith('2020') or sale_date.startswith('2021') or sale_date.startswith('2022')):
+                        source = listing_data.get('source', '')
+                        if source in existing_sources:
+                            logger.debug(f"Skipping listing already in CSV: {listing_url}")
+                            continue
+
+                        if listing_data.get('is_premium', False):
+                            condition = "Excellent"
+                        else:
+                            description = listing_data.get('description', '')
+                            condition = self.condition_analyzer.analyze_condition(description) if description else "Fair"
+
+                        historical_listing = {
+                            'model_year': listing_data.get('model_year', ''),
+                            'model_type': listing_data.get('model_type', ''),
+                            'mileage': listing_data.get('mileage', ''),
+                            'condition': condition,
+                            'sale_price': listing_data.get('sale_price', ''),
+                            'sale_date': sale_date,
+                            'source': listing_data.get('source', '')
+                        }
+                        historical_listings.append(historical_listing)
+                        batch_buffer.append(historical_listing)
+                        existing_sources.add(source)
+                        accepted_count += 1
+
+                        if len(batch_buffer) >= batch_size:
+                            logger.info(f"Saving batch of {len(batch_buffer)} listings to CSV...")
+                            self.save_historical_listings_batch(batch_buffer)
+                            batch_buffer = []
+                    else:
+                        logger.info(f"Skipping listing with sale_date '{sale_date}' (not 2020-2022): {listing_url}")
+                else:
+                    logger.warning(f"Failed to scrape listing: {listing_url}")
+                    failed += 1
+
+                time.sleep(config.REQUEST_DELAY)
+            except Exception as e:
+                logger.error(f"Error scraping listing {listing_url}: {e}")
+                failed += 1
+                continue
+
+        if batch_buffer:
+            logger.info(f"Saving final batch of {len(batch_buffer)} listings to CSV...")
+            self.save_historical_listings_batch(batch_buffer)
+
+        logger.info(f"Scraped {len(historical_listings)} 2020-2022 sold listings successfully")
+        logger.info(f"Summary: {len(listing_urls)} total URLs found, {accepted_count} had valid 2020-2022 sale dates, {failed} failed/excluded")
+        self.historical_listings = historical_listings
+
+        return historical_listings
+
+    def filter_similar_listings(self, target_listing):
+        """
+        Filter historical listings that match similarity criteria.
+
+        Args:
+            target_listing: dict with keys: model_year, model_type, mileage, condition
+
+        Returns:
+            list: Filtered historical listings that match criteria
+        """
+        target_model_type = target_listing.get('model_type', '').strip()
+        target_year_str = target_listing.get('model_year', '').strip()
+        target_mileage = target_listing.get('mileage', '')
+        target_condition = target_listing.get('condition', '').strip()
+
+        try:
+            target_year = int(target_year_str) if target_year_str else None
+        except ValueError:
+            target_year = None
+
+        try:
+            if isinstance(target_mileage, str):
+                target_mileage = int(target_mileage.replace(',', '')) if target_mileage else 0
+            elif not target_mileage:
+                target_mileage = 0
+        except (ValueError, AttributeError):
+            target_mileage = 0
+
+        filtered = []
+
+        for listing in self.historical_listings:
+            listing_model_type = listing.get('model_type', '').strip()
+            if listing_model_type != target_model_type:
+                continue
+
+            listing_year_str = listing.get('model_year', '').strip()
+            try:
+                listing_year = int(listing_year_str) if listing_year_str else None
+            except ValueError:
+                continue
+
+            if target_year is None or listing_year is None:
+                continue
+
+            if abs(target_year - listing_year) > 1:
+                continue
+
+            listing_mileage = listing.get('mileage', '')
+            try:
+                if isinstance(listing_mileage, str):
+                    listing_mileage = int(listing_mileage.replace(',', '')) if listing_mileage else 0
+                elif not listing_mileage:
+                    listing_mileage = 0
+            except (ValueError, AttributeError):
+                listing_mileage = 0
+
+            if target_mileage == 0 and listing_mileage == 0:
+                pass
+            elif target_mileage == 0 or listing_mileage == 0:
+                continue
+            else:
+                mileage_diff = abs(target_mileage - listing_mileage) / max(target_mileage, listing_mileage)
+                if mileage_diff > 0.15:
+                    continue
+
+            listing_condition = listing.get('condition', '').strip()
+            if listing_condition != target_condition:
+                continue
+
+            filtered.append(listing)
+
+        return filtered
+
+    def calculate_similarity_score(self, target_listing, comp_listing):
+        """
+        Calculate similarity score between target and comp listing.
+        Lower score = better match.
+
+        Args:
+            target_listing: dict with model_year, mileage, condition
+            comp_listing: dict with model_year, mileage, condition, sale_price
+
+        Returns:
+            float: Similarity score (lower is better)
+        """
+        target_year_str = target_listing.get('model_year', '').strip()
+        comp_year_str = comp_listing.get('model_year', '').strip()
+
+        try:
+            target_year = int(target_year_str) if target_year_str else 0
+            comp_year = int(comp_year_str) if comp_year_str else 0
+            year_diff = abs(target_year - comp_year)
+        except ValueError:
+            year_diff = 10
+
+        target_mileage = target_listing.get('mileage', '')
+        comp_mileage = comp_listing.get('mileage', '')
+
+        try:
+            if isinstance(target_mileage, str):
+                target_mileage = int(target_mileage.replace(',', '')) if target_mileage else 0
+            elif not target_mileage:
+                target_mileage = 0
+
+            if isinstance(comp_mileage, str):
+                comp_mileage = int(comp_mileage.replace(',', '')) if comp_mileage else 0
+            elif not comp_mileage:
+                comp_mileage = 0
+
+            if target_mileage == 0 and comp_mileage == 0:
+                mileage_diff = 0
+            elif target_mileage == 0 or comp_mileage == 0:
+                mileage_diff = 1.0
+            else:
+                mileage_diff = abs(target_mileage - comp_mileage) / max(target_mileage, comp_mileage)
+        except (ValueError, AttributeError):
+            mileage_diff = 1.0
+
+        target_condition = target_listing.get('condition', '').strip()
+        comp_condition = comp_listing.get('condition', '').strip()
+        condition_penalty = 0 if target_condition == comp_condition else 1
+
+        score = (year_diff * 1.0) + (mileage_diff * 2.0) + (condition_penalty * 3.0)
+        return score
+
+    def filter_loose_matches(self, target_listing, max_year_diff=5, max_mileage_pct=0.5, allow_condition_mismatch=True):
+        """
+        Filter historical listings with looser matching criteria for estimation.
+
+        Args:
+            target_listing: dict with keys: model_year, model_type, mileage, condition
+            max_year_diff: Maximum year difference allowed (default: 5)
+            max_mileage_pct: Maximum mileage percentage difference (default: 0.5 = 50%)
+            allow_condition_mismatch: Whether to allow different conditions (default: True)
+
+        Returns:
+            list: Filtered historical listings that match loose criteria
+        """
+        target_model_type = target_listing.get('model_type', '').strip()
+        target_year_str = target_listing.get('model_year', '').strip()
+        target_mileage = target_listing.get('mileage', '')
+        target_condition = target_listing.get('condition', '').strip()
+
+        try:
+            target_year = int(target_year_str) if target_year_str else None
+        except ValueError:
+            target_year = None
+
+        try:
+            if isinstance(target_mileage, str):
+                target_mileage = int(target_mileage.replace(',', '')) if target_mileage else 0
+            elif not target_mileage:
+                target_mileage = 0
+        except (ValueError, AttributeError):
+            target_mileage = 0
+
+        filtered = []
+
+        for listing in self.historical_listings:
+            listing_model_type = listing.get('model_type', '').strip()
+            if listing_model_type != target_model_type:
+                continue
+
+            listing_year_str = listing.get('model_year', '').strip()
+            try:
+                listing_year = int(listing_year_str) if listing_year_str else None
+            except ValueError:
+                continue
+
+            if target_year is not None and listing_year is not None:
+                if abs(target_year - listing_year) > max_year_diff:
+                    continue
+
+            listing_mileage = listing.get('mileage', '')
+            try:
+                if isinstance(listing_mileage, str):
+                    listing_mileage = int(listing_mileage.replace(',', '')) if listing_mileage else 0
+                elif not listing_mileage:
+                    listing_mileage = 0
+            except (ValueError, AttributeError):
+                listing_mileage = 0
+
+            if target_mileage > 0 and listing_mileage > 0:
+                mileage_diff = abs(target_mileage - listing_mileage) / max(target_mileage, listing_mileage)
+                if mileage_diff > max_mileage_pct:
+                    continue
+
+            if not allow_condition_mismatch:
+                listing_condition = listing.get('condition', '').strip()
+                if listing_condition != target_condition:
+                    continue
+
+            filtered.append(listing)
+
+        return filtered
+
+    def calculate_estimated_price(self, target_listing):
+        """
+        Calculate estimated price using progressively looser matching criteria.
+        Used as fallback when strict matching returns insufficient_data.
+
+        Args:
+            target_listing: dict with model_year, model_type, mileage, condition
+
+        Returns:
+            int: Estimated price, or None if no matches found even with loose criteria
+        """
+        criteria_levels = [
+            {'max_year_diff': 3, 'max_mileage_pct': 0.3, 'allow_condition_mismatch': False},
+            {'max_year_diff': 5, 'max_mileage_pct': 0.5, 'allow_condition_mismatch': True},
+            {'max_year_diff': 10, 'max_mileage_pct': 1.0, 'allow_condition_mismatch': True},
+            {'max_year_diff': 999, 'max_mileage_pct': 1.0, 'allow_condition_mismatch': True},
+        ]
+
+        for level, criteria in enumerate(criteria_levels, 1):
+            loose_matches = self.filter_loose_matches(target_listing, **criteria)
+
+            if len(loose_matches) == 0:
+                continue
+
+            scored_listings = []
+            for comp in loose_matches:
+                score = self.calculate_similarity_score(target_listing, comp)
+                sale_price = comp.get('sale_price', '')
+                if sale_price and isinstance(sale_price, (int, str)):
+                    try:
+                        if isinstance(sale_price, str):
+                            sale_price = int(sale_price.replace(',', '').replace('$', ''))
+                        scored_listings.append({'listing': comp, 'score': score, 'sale_price': sale_price})
+                    except (ValueError, AttributeError):
+                        continue
+
+            if len(scored_listings) == 0:
+                continue
+
+            scored_listings.sort(key=lambda x: x['score'])
+            top_matches = scored_listings[:5]
+            prices = [item['sale_price'] for item in top_matches]
+
+            if len(prices) == 0:
+                continue
+
+            if len(prices) == 1:
+                estimate = prices[0]
+            elif len(prices) == 2:
+                estimate = int(sum(prices) / 2)
+            else:
+                estimate = int(statistics.median(prices))
+
+            logger.info(f"Estimated price using level {level} criteria: {estimate} (from {len(prices)} matches)")
+            return estimate
+
+        return None
+
+    def calculate_price_3_years_ago(self, target_listing):
+        """
+        Calculate price_3_years_ago for a target listing by finding best matches.
+        Falls back to estimation if strict matching fails.
+
+        Args:
+            target_listing: dict with model_year, model_type, mileage, condition
+
+        Returns:
+            str or int: Sale price (int) if match found, estimated price if fallback used, "insufficient_data" if no matches
+        """
+        similar_listings = self.filter_similar_listings(target_listing)
+
+        if len(similar_listings) == 0:
+            logger.info("No strict matches found, attempting estimation with looser criteria...")
+            estimated_price = self.calculate_estimated_price(target_listing)
+            if estimated_price is not None:
+                return estimated_price
+            return "insufficient_data"
+
+        scored_listings = []
+        for comp in similar_listings:
+            score = self.calculate_similarity_score(target_listing, comp)
+            sale_price = comp.get('sale_price', '')
+            if sale_price and isinstance(sale_price, (int, str)):
+                try:
+                    if isinstance(sale_price, str):
+                        sale_price = int(sale_price.replace(',', '').replace('$', ''))
+                    scored_listings.append({'listing': comp, 'score': score, 'sale_price': sale_price})
+                except (ValueError, AttributeError):
+                    continue
+
+        if len(scored_listings) == 0:
+            logger.info("No valid prices in strict matches, attempting estimation...")
+            estimated_price = self.calculate_estimated_price(target_listing)
+            if estimated_price is not None:
+                return estimated_price
+            return "insufficient_data"
+
+        scored_listings.sort(key=lambda x: x['score'])
+
+        if len(scored_listings) == 1:
+            return scored_listings[0]['sale_price']
+
+        top_3 = scored_listings[:3]
+        prices = [item['sale_price'] for item in top_3]
+
+        if len(prices) == 1:
+            return prices[0]
+        elif len(prices) == 2:
+            return int(sum(prices) / 2)
+        else:
+            return int(statistics.median(prices))
+````
+
+## File: PORTABILITY.md
+````markdown
+# Portability Guide
+
+This project runs entirely locally — no cloud database, no paid API (beyond the Gemini free tier).
+Below is everything you need to move the project to a different PC.
+
+## What to copy
+
+| Item | Path | Why |
+|---|---|---|
+| Code | entire repo | All scripts, notebooks |
+| Historical CSV | `project/data/csv/years_ago.csv` | 2020-2022 BaT sold listings used at runtime |
+| Vector DB | `project/data/qdrant_db/` | Local Qdrant collections (image + text vectors) |
+| Trained model | `project/data/porsche_model.pkl` | Sklearn appreciation prediction model |
+| Encoder | `project/data/porsche_encoder.pkl` | Fitted OneHotEncoder used by the model |
+| API key | `.env` | Your `GEMINI_API_KEY` |
+
+> **Not needed at runtime:** `project/data/images/`, `project/data/descriptions/`, and `project/data/csv/porsche_data.csv` were only used during training. You do not need to copy them to run the app.
+
+## Step-by-step: set up on a new PC
+
+1. **Clone or copy the repo**
+   ```bash
+   git clone <your-repo-url>
+   # or unzip the repo archive
+   ```
+
+2. **Copy the data files** (not tracked by git — copy manually):
+   ```
+   project/data/qdrant_db/
+   project/data/csv/years_ago.csv
+   project/data/porsche_model.pkl
+   project/data/porsche_encoder.pkl
+   ```
+
+3. **Create your `.env` file**
+   ```bash
+   cp .env.example .env
+   # then edit .env and paste your GEMINI_API_KEY
+   ```
+   Get a free key at https://aistudio.google.com/apikey
+
+4. **Create and activate a virtual environment**
+   ```bash
+   python -m venv venv
+   # Windows:
+   venv\Scripts\activate
+   # macOS/Linux:
+   source venv/bin/activate
+   ```
+
+5. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+   > Note: `git+https://github.com/openai/CLIP.git` in requirements.txt installs the CLIP model
+   > directly from GitHub and requires `git` to be on your PATH.
+
+6. **Open the notebooks**
+   ```bash
+   jupyter notebook project/notebooks/
+   ```
+
+## What stays local (never in git)
+
+- `project/data/qdrant_db/` — vector database
+- `project/data/csv/years_ago.csv` — historical price data
+- `project/data/porsche_model.pkl` — trained model
+- `project/data/porsche_encoder.pkl` — fitted encoder
+- `.env` — API key
+
+These paths are already listed in `.gitignore`.
+
+## Ongoing costs
+
+| Service | Cost |
+|---|---|
+| Gemini API (free tier) | $0 — 1,500 requests/day free via Google AI Studio |
+| Data storage | $0 — local files only |
+| Vector DB (Qdrant local) | $0 — runs on disk |
+| Embeddings (CLIP + SentenceTransformers) | $0 — runs locally |
+````
+
+## File: config.py
+````python
+"""Configuration settings for the Porsche scraper."""
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
-ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(ROOT, 'project', 'data')
-
-from historical_matcher import HistoricalMatcher
-
-# ── Load all models once at startup ───────────────────────────────────────────
-print('Loading models ...')
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-clip_model, clip_preprocess = clip.load('ViT-B/32', device=device)
-print('  CLIP ready')
-
-text_model = SentenceTransformer('all-MiniLM-L6-v2')
-print('  SentenceTransformer ready')
-
-qdrant = QdrantClient(path=os.path.join(DATA, 'qdrant_db'))
-print('  Qdrant ready')
-
-with open(os.path.join(DATA, 'porsche_model.pkl'), 'rb') as f:
-    appreciation_model = pickle.load(f)
-with open(os.path.join(DATA, 'porsche_encoder.pkl'), 'rb') as f:
-    appreciation_encoder = pickle.load(f)
-print('  sklearn models ready')
-
-historical_matcher = HistoricalMatcher()
-historical_matcher.load_historical_listings_from_csv()
-print('  HistoricalMatcher ready')
-
-GEMINI_MODEL  = os.getenv('GEMINI_MODEL', 'gemini-3.1-flash-lite-preview')
-gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
-print('  Gemini client ready')
-print('All models loaded.\n')
-
-# ── Pipeline functions ─────────────────────────────────────────────────────────
-
-def find_similar_listings(image_path, top_k=10):
-    image = Image.open(image_path).convert('RGB')
-    tensor = clip_preprocess(image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        feats = clip_model.encode_image(tensor)
-        feats = feats / feats.norm(dim=1, keepdim=True)
-
-    results = qdrant.query_points(
-        collection_name='porsche_images',
-        query=feats.cpu().numpy()[0].tolist(),
-        limit=top_k,
-    )
-    return [
-        {
-            'listing_id': r.payload['listing_id'],
-            'model_year':  r.payload['model_year'],
-            'model_type':  r.payload['model_type'],
-            'mileage':     r.payload['mileage'],
-            'condition':   r.payload['condition'],
-            'price_now':   r.payload['price_now'],
-            'source':      r.payload['source'],
-        }
-        for r in results.points
-    ]
-
-
-def extract_vehicle_info(similar_listings):
-    if not similar_listings:
-        return None
-    top5 = similar_listings[:5]
-
-    model_type = Counter(l['model_type'] for l in top5).most_common(1)[0][0]
-    years      = [float(l['model_year']) for l in top5 if pd.notna(l['model_year'])]
-    model_year = int(np.median(years)) if years else None
-    condition  = Counter(l['condition'] for l in top5).most_common(1)[0][0]
-    mileages   = [l['mileage'] for l in top5 if pd.notna(l['mileage'])]
-    mileage    = int(np.median(mileages)) if mileages else None
-
-    return {
-        'model_type':        model_type,
-        'model_year':        model_year,
-        'condition':         condition,
-        'mileage':           mileage,
-        'similar_listings':  similar_listings,
-    }
-
-
-def get_historical_price(vehicle_info):
-    target = {
-        'model_year': str(vehicle_info['model_year']),
-        'model_type': vehicle_info['model_type'],
-        'mileage':    vehicle_info.get('mileage', ''),
-        'condition':  vehicle_info['condition'],
-    }
-    result = historical_matcher.calculate_price_3_years_ago(target)
-    return None if result == 'insufficient_data' else result
-
-
-_CONDITION_PROMPT = """
-You are a certified Porsche pre-purchase inspection specialist with 20+ years of experience.
-Examine every photo of this used Porsche listing carefully.
-
-Seller description:
-\"\"\"
-{seller_text}
-\"\"\"
-
-Return ONLY valid JSON — no markdown fences, no commentary — matching this exact schema:
-{{
-  "overall_condition_grade": "Excellent|Good|Fair|Poor",
-  "condition_score": <float 1.0-10.0>,
-  "paint_and_body": {{
-    "issues_found": [{{"location": "", "severity": "minor|moderate|severe", "description": ""}}],
-    "panel_gaps_even": true,
-    "repaint_evidence": false,
-    "repaint_notes": ""
-  }},
-  "aftermarket_modifications": [{{"item": "", "description": "", "oem_compliant": true}}],
-  "missing_or_damaged_trim": [{{"item": "", "location": "", "severity": ""}}],
-  "interior_condition": {{"grade": "", "issues": []}},
-  "text_photo_inconsistencies": [{{"claim_in_text": "", "what_photos_show": "", "severity": ""}}],
-  "red_flags": [],
-  "recommended_restoration_steps": [],
-  "summary": ""
-}}
-
-Only report issues directly observable in the photos or that contradict the seller text.
-Use empty lists [] for categories with no issues.
-"""
-
-
-def generate_condition_report(image_path, seller_text=''):
-    prompt = _CONDITION_PROMPT.format(
-        seller_text=seller_text.strip() or 'Not provided.'
-    )
-    image = Image.open(image_path).convert('RGB')
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[prompt, image],
-    )
-    raw = response.text.strip()
-    # Strip markdown fences if Gemini adds them despite instructions
-    raw = re.sub(r'^```(?:json)?\s*', '', raw)
-    raw = re.sub(r'\s*```$', '', raw)
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return {
-            'overall_condition_grade': 'Unknown',
-            'condition_score': None,
-            'paint_and_body': {'issues_found': [], 'panel_gaps_even': None,
-                               'repaint_evidence': None, 'repaint_notes': ''},
-            'aftermarket_modifications': [],
-            'missing_or_damaged_trim': [],
-            'interior_condition': {'grade': 'Unknown', 'issues': []},
-            'text_photo_inconsistencies': [],
-            'red_flags': [],
-            'recommended_restoration_steps': [],
-            'summary': raw,  # surface raw text so user sees something
-        }
-
-
-def generate_valuation(image_path, vehicle_info, similar_listings,
-                       price_3_years_ago, current_price=None, user_mileage=None):
-    similar_summary = '\n'.join(
-        f"- {l['model_type']} {l['model_year']} ({l['condition']}, "
-        f"{l['mileage']}mi, USD{int(l['price_now']):,})"
-        for l in similar_listings[:5]
-    )
-    mileage_line = (f"- Mileage: {int(user_mileage):,} mi"
-                    if user_mileage is not None else "")
-    prompt = f"""
-You are an expert Porsche appraiser with 20 years of experience.
-Analyse this Porsche listing and provide a market valuation.
-
-Vehicle Information (from image matching):
-- Model Type: {vehicle_info['model_type']}
-- Model Year: {vehicle_info['model_year']}
-- Condition: {vehicle_info['condition']}
-{mileage_line}
-Similar Historical Listings (from vector search):
-{similar_summary}
-
-Historical Price (3 years ago): {"${:,}".format(price_3_years_ago) if price_3_years_ago else "Unknown"}
-Current Asking Price: {"${:,}".format(int(current_price)) if current_price else "Not provided"}
-
-Analyse the uploaded image, compare with similar listings, and provide:
-1. Estimated Current Market Value (USD)
-2. Brief reasoning (2-3 sentences)
-3. Key factors affecting valuation
-
-Format your response as:
-VALUATION: $X,XXX
-REASONING: [your analysis]
-FACTORS: [key factors]
-"""
-    image = Image.open(image_path).convert('RGB')
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[prompt, image],
-    )
-    return response.text
-
-
-def parse_llm_valuation(text):
-    match = re.search(r'VALUATION:\s*\$?([\d,]+)', text)
-    return float(match.group(1).replace(',', '')) if match else None
-
-
-def predict_appreciation(vehicle_info, current_valuation, price_3_years_ago, user_mileage=None):
-    mileage = user_mileage if user_mileage is not None else vehicle_info.get('mileage')
-    input_df = pd.DataFrame([{
-        'model_year':        vehicle_info['model_year'],
-        'model_type':        vehicle_info['model_type'],
-        'mileage':           mileage,
-        'condition':         vehicle_info['condition'],
-        'price_now':         current_valuation,
-        'price_3_years_ago': price_3_years_ago if price_3_years_ago is not None else 0,
-    }])
-    object_cols = appreciation_encoder.feature_names_in_.tolist()
-    for col in object_cols:
-        input_df[col] = input_df[col].astype(str)
-    encoded = pd.DataFrame(appreciation_encoder.transform(input_df[object_cols]))
-    encoded.index = input_df.index
-    X = pd.concat([input_df.drop(object_cols, axis=1), encoded], axis=1)
-    X.columns = X.columns.astype(str)
-    raw = appreciation_model.predict(X)
-    return {
-        'will_appreciate': bool(int(np.round(raw[0])) == 1),
-        'confidence':      round(float(raw[0]), 2),
-    }
-
-
-def full_pipeline(image_path, seller_text='', current_price=None, user_mileage=None):
-    similar      = find_similar_listings(image_path, top_k=10)
-    vehicle_info = extract_vehicle_info(similar)
-    hist_price   = get_historical_price(vehicle_info)
-
-    condition_report = generate_condition_report(image_path, seller_text)
-    llm_valuation    = generate_valuation(image_path, vehicle_info, similar,
-                                           hist_price, current_price,
-                                           user_mileage=user_mileage)
-    current_val = parse_llm_valuation(llm_valuation)
-    if current_val is None:
-        current_val = current_price or float(
-            np.median([l['price_now'] for l in similar[:5]])
-        )
-
-    appreciation = predict_appreciation(vehicle_info, current_val, hist_price,
-                                        user_mileage=user_mileage)
-
-    # Remove nested similar_listings from vehicle_info to keep response clean
-    vehicle_info_clean = {k: v for k, v in vehicle_info.items()
-                          if k != 'similar_listings'}
-
-    return {
-        'vehicle_info':          vehicle_info_clean,
-        'price_3_years_ago':     hist_price,
-        'condition_report':      condition_report,
-        'llm_valuation':         llm_valuation,
-        'current_valuation':     current_val,
-        'appreciation_prediction': appreciation,
-    }
-
-
-# ── Debug logging helper ───────────────────────────────────────────────────────
-import time as _time
-
-_DBG_LOG = os.path.join(ROOT, 'debug-8147b6.log')
-
-def _dbg(msg, data=None, hypothesis=''):
-    entry = json.dumps({'sessionId':'8147b6','timestamp':int(_time.time()*1000),
-                        'location':'app.py','message':msg,'data':data or {},
-                        'hypothesisId':hypothesis})
-    with open(_DBG_LOG, 'a') as _f:
-        _f.write(entry + '\n')
-
-# ── Flask routes ───────────────────────────────────────────────────────────────
-app = Flask(__name__)
-
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-
-@app.route('/debug-log', methods=['POST'])
-def debug_log():
-    entry = request.get_json(silent=True) or {}
-    with open(_DBG_LOG, 'a') as f:
-        f.write(json.dumps(entry) + '\n')
-    return '', 204
-
-
-def _sse(payload: dict) -> str:
-    return f"data: {json.dumps(payload)}\n\n"
-
-
-_ALLOWED_MIMETYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
-_MAGIC_BYTES = {
-    b'\xff\xd8\xff':      'image/jpeg',
-    b'\x89PNG\r\n\x1a\n': 'image/png',
-    b'RIFF':              'image/webp',  # checked further below
-    b'GIF87a':            'image/gif',
-    b'GIF89a':            'image/gif',
-}
-_MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
-_MAX_TEXT_LEN    = 5_000
-_MAX_PRICE       = 10_000_000
-_MAX_MILEAGE     = 10_000_000
-
-
-def _sniff_mimetype(header: bytes) -> str | None:
-    """Return MIME type from the first 12 bytes, or None if unrecognised."""
-    for magic, mime in _MAGIC_BYTES.items():
-        if header[:len(magic)] == magic:
-            if mime == 'image/webp' and header[8:12] != b'WEBP':
-                return None
-            return mime
-    return None
-
-
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    if 'image' not in request.files or request.files['image'].filename == '':
-        return jsonify({'error': 'No image provided.'}), 400
-
-    image_file = request.files['image']
-
-    # ── Image validation ──────────────────────────────────────────────────────
-    header = image_file.read(12)
-    image_file.seek(0)
-    detected_mime = _sniff_mimetype(header)
-    if detected_mime not in _ALLOWED_MIMETYPES:
-        return jsonify({'error': 'Unsupported image type. Upload a JPEG, PNG, WebP, or GIF.'}), 415
-
-    image_file.seek(0, 2)
-    file_size = image_file.tell()
-    image_file.seek(0)
-    if file_size > _MAX_IMAGE_BYTES:
-        return jsonify({'error': 'Image exceeds the 20 MB size limit.'}), 413
-
-    # ── Text / numeric field validation ───────────────────────────────────────
-    seller_text = request.form.get('seller_text', '')[:_MAX_TEXT_LEN]
-
-    def _parse_positive_float(raw, max_val):
-        raw = (raw or '').strip()
-        if not raw:
-            return None
-        try:
-            val = float(raw)
-        except ValueError:
-            return False
-        if val < 0 or val > max_val or not (val == val):  # NaN guard
-            return False
-        return val
-
-    asking_price = _parse_positive_float(request.form.get('asking_price'), _MAX_PRICE)
-    user_mileage = _parse_positive_float(request.form.get('mileage'),      _MAX_MILEAGE)
-
-    if asking_price is False:
-        return jsonify({'error': 'Invalid asking price.'}), 400
-    if user_mileage is False:
-        return jsonify({'error': 'Invalid mileage value.'}), 400
-
-    # ── Save to temp file ─────────────────────────────────────────────────────
-    _MIME_TO_EXT = {'image/jpeg': '.jpg', 'image/png': '.png',
-                    'image/webp': '.webp', 'image/gif': '.gif'}
-    suffix = _MIME_TO_EXT[detected_mime]
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    image_file.save(tmp.name)
-    tmp.close()
-
-    @stream_with_context
-    def generate():
-        try:
-            _dbg('yield scanning', hypothesis='H-A')
-            chunk = _sse({'step': 'scanning', 'label': 'Scanning image…', 'progress': 10})
-            _dbg('about to yield scanning chunk', {'chunk': chunk}, hypothesis='H-A')
-            yield chunk
-            _dbg('yielded scanning — now running find_similar_listings', hypothesis='H-A')
-            similar = find_similar_listings(tmp.name, top_k=10)
-
-            _dbg('yield identifying', hypothesis='H-A')
-            yield _sse({'step': 'identifying', 'label': 'Identifying vehicle…', 'progress': 25})
-            vehicle_info = extract_vehicle_info(similar)
-
-            _dbg('yield history', hypothesis='H-A')
-            yield _sse({'step': 'history', 'label': 'Checking market history…', 'progress': 40})
-            hist_price = get_historical_price(vehicle_info)
-
-            _dbg('yield condition', hypothesis='H-A')
-            yield _sse({'step': 'condition', 'label': 'Analysing condition…', 'progress': 55})
-            condition_report = generate_condition_report(tmp.name, seller_text)
-
-            _dbg('yield valuation', hypothesis='H-A')
-            yield _sse({'step': 'valuation', 'label': 'Valuing the car…', 'progress': 75})
-            llm_valuation = generate_valuation(tmp.name, vehicle_info, similar,
-                                               hist_price, asking_price,
-                                               user_mileage=user_mileage)
-            current_val = parse_llm_valuation(llm_valuation)
-            if current_val is None:
-                current_val = asking_price or float(
-                    np.median([l['price_now'] for l in similar[:5]])
-                )
-
-            _dbg('yield predicting', hypothesis='H-A')
-            yield _sse({'step': 'predicting', 'label': 'Predicting appreciation…', 'progress': 90})
-            appreciation = predict_appreciation(vehicle_info, current_val, hist_price,
-                                                user_mileage=user_mileage)
-
-            vehicle_info_clean = {k: v for k, v in vehicle_info.items()
-                                  if k != 'similar_listings'}
-            result = {
-                'vehicle_info':            vehicle_info_clean,
-                'price_3_years_ago':       hist_price,
-                'condition_report':        condition_report,
-                'llm_valuation':           llm_valuation,
-                'current_valuation':       current_val,
-                'appreciation_prediction': appreciation,
-            }
-            _dbg('yield done', hypothesis='H-A')
-            yield _sse({'step': 'done', 'label': 'Done', 'progress': 100, 'result': result})
-            _dbg('generator finished normally', hypothesis='H-A')
-
-        except Exception as e:
-            _dbg('generator exception', {'error': str(e)}, hypothesis='H-A')
-            yield _sse({'step': 'error', 'error': str(e)})
-        finally:
-            try:
-                os.unlink(tmp.name)
-            except OSError:
-                pass
-
-    return Response(
-        generate(),
-        mimetype='text/event-stream',
-        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
-    )
-
-
-if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=8080, use_reloader=False, threaded=True)
+# Gemini Configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
+
+# CSV Data Paths (relative to repo root: project/data/csv/)
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA_CSV_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "csv", "porsche_data.csv")
+YEARS_AGO_CSV_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "csv", "years_ago.csv")
+
+# Column names for the main data CSV
+COLUMNS = ["model_year", "model_type", "mileage", "condition", "price_now", "price_3_years_ago", "appreciated", "source"]
+
+# Column names for the years_ago CSV (historical 2020-2022 listings)
+YEARS_AGO_COLUMNS = ["model_year", "model_type", "mileage", "condition", "sale_price", "sale_date", "source"]
+
+# Scraper Configuration
+BASE_URL = "https://bringatrailer.com"
+REQUEST_DELAY = 1  # Seconds between requests to be respectful
+MAX_RETRIES = 3
+
+# Image Scraper Configuration
+IMAGE_SAVE_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "images")
+MAX_IMAGES_PER_LISTING = 12
+
+# Description Scraper Configuration
+DESCRIPTION_SAVE_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "descriptions")
 ````
 
 ## File: project/notebooks/01_eda.ipynb
@@ -14918,7 +14367,7 @@ if __name__ == '__main__':
   },
   {
    "cell_type": "code",
-   "execution_count": 79,
+   "execution_count": null,
    "id": "4c395129",
    "metadata": {},
    "outputs": [
@@ -14997,7 +14446,7 @@ if __name__ == '__main__':
     "\n",
     "\n",
     "plt.tight_layout()\n",
-    "# plt.savefig('../../graphs/distribution_image_counts.png', dpi=300, bbox_inches='tight')\n",
+    "plt.savefig('../../graphs/distribution_image_counts.png', dpi=300, bbox_inches='tight')\n",
     "plt.show()\n",
     "display(md(\n",
     "    'Based on the visualisations, we can see the distribution of image counts across listings and how they vary by **condition** and **model_type**. The graphs show a strong pattern: most listings have 12 images, with few exceptions. The histogram shows over 1,100 listings at 12 images, while counts of 6, 8, and 10 are rare.\\n\\nBy condition, all \"Excellent\" listings have 12 images, while \"Fair\" listings mostly have 12 with a few outliers at 6, 8, and 10.\\n\\nBy model type, most models (356, 911, 912, 914, 918, 928, 930, 944, 956, 959, 962, 968, Cayman) have all listings at 12 images; 924, 935, and Boxster have occasional outliers with fewer images. The average image count is 12 for both conditions, indicating a consistent standard across the dataset.'\n",
@@ -15039,1619 +14488,112 @@ if __name__ == '__main__':
 }
 ````
 
-## File: project/notebooks/02_preprocessing_and_training.ipynb
+## File: .gitignore
 ````
-{
-  "cells": [
-    {
-      "cell_type": "code",
-      "execution_count": 2,
-      "id": "fe75a901",
-      "metadata": {},
-      "outputs": [],
-      "source": [
-        "import pandas as pd\n",
-        "import numpy as np\n",
-        "# To train and test data\n",
-        "from sklearn.model_selection import train_test_split\n",
-        "# To manage categorical features\n",
-        "from sklearn.preprocessing import LabelEncoder\n",
-        "from sklearn.preprocessing import OneHotEncoder\n",
-        "# To define the models\n",
-        "from sklearn.ensemble import RandomForestRegressor\n",
-        "from sklearn.linear_model import LogisticRegression\n",
-        "# To measure model quality\n",
-        "from sklearn.metrics import mean_absolute_error, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix\n",
-        "# Visualise\n",
-        "import matplotlib.pyplot as plt\n",
-        "# Save trained model\n",
-        "import pickle"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 3,
-      "id": "7e24c10d",
-      "metadata": {},
-      "outputs": [
-        {
-          "data": {
-            "text/html": [
-              "<div>\n",
-              "<style scoped>\n",
-              "    .dataframe tbody tr th:only-of-type {\n",
-              "        vertical-align: middle;\n",
-              "    }\n",
-              "\n",
-              "    .dataframe tbody tr th {\n",
-              "        vertical-align: top;\n",
-              "    }\n",
-              "\n",
-              "    .dataframe thead th {\n",
-              "        text-align: right;\n",
-              "    }\n",
-              "</style>\n",
-              "<table border=\"1\" class=\"dataframe\">\n",
-              "  <thead>\n",
-              "    <tr style=\"text-align: right;\">\n",
-              "      <th></th>\n",
-              "      <th>id</th>\n",
-              "      <th>model_year</th>\n",
-              "      <th>model_type</th>\n",
-              "      <th>mileage</th>\n",
-              "      <th>condition</th>\n",
-              "      <th>price_now</th>\n",
-              "      <th>price_3_years_ago</th>\n",
-              "      <th>appreciated</th>\n",
-              "      <th>image_paths</th>\n",
-              "      <th>seller_description</th>\n",
-              "      <th>source</th>\n",
-              "    </tr>\n",
-              "  </thead>\n",
-              "  <tbody>\n",
-              "    <tr>\n",
-              "      <th>0</th>\n",
-              "      <td>p00001</td>\n",
-              "      <td>1987.0</td>\n",
-              "      <td>944</td>\n",
-              "      <td>132000.0</td>\n",
-              "      <td>Fair</td>\n",
-              "      <td>16250.0</td>\n",
-              "      <td>13944</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p00001_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p00001_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/1987-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1</th>\n",
-              "      <td>p00002</td>\n",
-              "      <td>1970.0</td>\n",
-              "      <td>911</td>\n",
-              "      <td>93000.0</td>\n",
-              "      <td>Fair</td>\n",
-              "      <td>84050.0</td>\n",
-              "      <td>76500</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p00002_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p00002_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/1970-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>2</th>\n",
-              "      <td>p00003</td>\n",
-              "      <td>1970.0</td>\n",
-              "      <td>911</td>\n",
-              "      <td>2.0</td>\n",
-              "      <td>Excellent</td>\n",
-              "      <td>500000.0</td>\n",
-              "      <td>73000</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p00003_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p00003_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/1966-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>3</th>\n",
-              "      <td>p00004</td>\n",
-              "      <td>2018.0</td>\n",
-              "      <td>911</td>\n",
-              "      <td>1200.0</td>\n",
-              "      <td>Fair</td>\n",
-              "      <td>435000.0</td>\n",
-              "      <td>322000</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p00004_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p00004_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/2018-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>4</th>\n",
-              "      <td>p00005</td>\n",
-              "      <td>1965.0</td>\n",
-              "      <td>356</td>\n",
-              "      <td>148.0</td>\n",
-              "      <td>Excellent</td>\n",
-              "      <td>755000.0</td>\n",
-              "      <td>4500</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p00005_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p00005_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/1965-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>...</th>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1374</th>\n",
-              "      <td>p01375</td>\n",
-              "      <td>1976.0</td>\n",
-              "      <td>911</td>\n",
-              "      <td>59000.0</td>\n",
-              "      <td>Fair</td>\n",
-              "      <td>76000.0</td>\n",
-              "      <td>35500</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p01375_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p01375_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/1976-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1375</th>\n",
-              "      <td>p01376</td>\n",
-              "      <td>2023.0</td>\n",
-              "      <td>Cayman</td>\n",
-              "      <td>4600.0</td>\n",
-              "      <td>Fair</td>\n",
-              "      <td>186000.0</td>\n",
-              "      <td>130000</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p01376_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p01376_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/2023-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1376</th>\n",
-              "      <td>p01377</td>\n",
-              "      <td>1961.0</td>\n",
-              "      <td>356</td>\n",
-              "      <td>17000.0</td>\n",
-              "      <td>Fair</td>\n",
-              "      <td>148000.0</td>\n",
-              "      <td>81000</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p01377_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p01377_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/1961-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1377</th>\n",
-              "      <td>p01378</td>\n",
-              "      <td>1988.0</td>\n",
-              "      <td>911</td>\n",
-              "      <td>100000.0</td>\n",
-              "      <td>Fair</td>\n",
-              "      <td>80000.0</td>\n",
-              "      <td>44750</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p01378_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p01378_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/1988-porsche...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1378</th>\n",
-              "      <td>p01379</td>\n",
-              "      <td>1958.0</td>\n",
-              "      <td>356</td>\n",
-              "      <td>4300.0</td>\n",
-              "      <td>Excellent</td>\n",
-              "      <td>699356.0</td>\n",
-              "      <td>307500</td>\n",
-              "      <td>yes</td>\n",
-              "      <td>[\"project/data/images/p01379_image_1.jpg\", \"pr...</td>\n",
-              "      <td>project/data/descriptions/p01379_seller_descri...</td>\n",
-              "      <td>https://bringatrailer.com/listing/1958-porsche...</td>\n",
-              "    </tr>\n",
-              "  </tbody>\n",
-              "</table>\n",
-              "<p>1232 rows × 11 columns</p>\n",
-              "</div>"
-            ],
-            "text/plain": [
-              "          id  model_year model_type   mileage  condition  price_now  \\\n",
-              "0     p00001      1987.0        944  132000.0       Fair    16250.0   \n",
-              "1     p00002      1970.0        911   93000.0       Fair    84050.0   \n",
-              "2     p00003      1970.0        911       2.0  Excellent   500000.0   \n",
-              "3     p00004      2018.0        911    1200.0       Fair   435000.0   \n",
-              "4     p00005      1965.0        356     148.0  Excellent   755000.0   \n",
-              "...      ...         ...        ...       ...        ...        ...   \n",
-              "1374  p01375      1976.0        911   59000.0       Fair    76000.0   \n",
-              "1375  p01376      2023.0     Cayman    4600.0       Fair   186000.0   \n",
-              "1376  p01377      1961.0        356   17000.0       Fair   148000.0   \n",
-              "1377  p01378      1988.0        911  100000.0       Fair    80000.0   \n",
-              "1378  p01379      1958.0        356    4300.0  Excellent   699356.0   \n",
-              "\n",
-              "     price_3_years_ago appreciated  \\\n",
-              "0                13944         yes   \n",
-              "1                76500         yes   \n",
-              "2                73000         yes   \n",
-              "3               322000         yes   \n",
-              "4                 4500         yes   \n",
-              "...                ...         ...   \n",
-              "1374             35500         yes   \n",
-              "1375            130000         yes   \n",
-              "1376             81000         yes   \n",
-              "1377             44750         yes   \n",
-              "1378            307500         yes   \n",
-              "\n",
-              "                                            image_paths  \\\n",
-              "0     [\"project/data/images/p00001_image_1.jpg\", \"pr...   \n",
-              "1     [\"project/data/images/p00002_image_1.jpg\", \"pr...   \n",
-              "2     [\"project/data/images/p00003_image_1.jpg\", \"pr...   \n",
-              "3     [\"project/data/images/p00004_image_1.jpg\", \"pr...   \n",
-              "4     [\"project/data/images/p00005_image_1.jpg\", \"pr...   \n",
-              "...                                                 ...   \n",
-              "1374  [\"project/data/images/p01375_image_1.jpg\", \"pr...   \n",
-              "1375  [\"project/data/images/p01376_image_1.jpg\", \"pr...   \n",
-              "1376  [\"project/data/images/p01377_image_1.jpg\", \"pr...   \n",
-              "1377  [\"project/data/images/p01378_image_1.jpg\", \"pr...   \n",
-              "1378  [\"project/data/images/p01379_image_1.jpg\", \"pr...   \n",
-              "\n",
-              "                                     seller_description  \\\n",
-              "0     project/data/descriptions/p00001_seller_descri...   \n",
-              "1     project/data/descriptions/p00002_seller_descri...   \n",
-              "2     project/data/descriptions/p00003_seller_descri...   \n",
-              "3     project/data/descriptions/p00004_seller_descri...   \n",
-              "4     project/data/descriptions/p00005_seller_descri...   \n",
-              "...                                                 ...   \n",
-              "1374  project/data/descriptions/p01375_seller_descri...   \n",
-              "1375  project/data/descriptions/p01376_seller_descri...   \n",
-              "1376  project/data/descriptions/p01377_seller_descri...   \n",
-              "1377  project/data/descriptions/p01378_seller_descri...   \n",
-              "1378  project/data/descriptions/p01379_seller_descri...   \n",
-              "\n",
-              "                                                 source  \n",
-              "0     https://bringatrailer.com/listing/1987-porsche...  \n",
-              "1     https://bringatrailer.com/listing/1970-porsche...  \n",
-              "2     https://bringatrailer.com/listing/1966-porsche...  \n",
-              "3     https://bringatrailer.com/listing/2018-porsche...  \n",
-              "4     https://bringatrailer.com/listing/1965-porsche...  \n",
-              "...                                                 ...  \n",
-              "1374  https://bringatrailer.com/listing/1976-porsche...  \n",
-              "1375  https://bringatrailer.com/listing/2023-porsche...  \n",
-              "1376  https://bringatrailer.com/listing/1961-porsche...  \n",
-              "1377  https://bringatrailer.com/listing/1988-porsche...  \n",
-              "1378  https://bringatrailer.com/listing/1958-porsche...  \n",
-              "\n",
-              "[1232 rows x 11 columns]"
-            ]
-          },
-          "execution_count": 3,
-          "metadata": {},
-          "output_type": "execute_result"
-        }
-      ],
-      "source": [
-        "# Load the data\n",
-        "path = '../data/csv/porsche_data.csv'\n",
-        "df = pd.read_csv(path)\n",
-        "## Drop rows with empty columns\n",
-        "df.dropna(inplace=True)\n",
-        "df"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 4,
-      "id": "dbdfe150",
-      "metadata": {},
-      "outputs": [],
-      "source": [
-        "# Select data X and y\n",
-        "X_list = ['model_year', 'model_type', 'mileage', 'condition', 'price_now', 'price_3_years_ago']\n",
-        "X = df[X_list]\n",
-        "y = df.appreciated\n",
-        "\n",
-        "# Label encode yes/no in col 'appreciated'\n",
-        "le = LabelEncoder()\n",
-        "y = le.fit_transform(y)"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 5,
-      "id": "15f3c4ba",
-      "metadata": {},
-      "outputs": [
-        {
-          "data": {
-            "text/html": [
-              "<div>\n",
-              "<style scoped>\n",
-              "    .dataframe tbody tr th:only-of-type {\n",
-              "        vertical-align: middle;\n",
-              "    }\n",
-              "\n",
-              "    .dataframe tbody tr th {\n",
-              "        vertical-align: top;\n",
-              "    }\n",
-              "\n",
-              "    .dataframe thead th {\n",
-              "        text-align: right;\n",
-              "    }\n",
-              "</style>\n",
-              "<table border=\"1\" class=\"dataframe\">\n",
-              "  <thead>\n",
-              "    <tr style=\"text-align: right;\">\n",
-              "      <th></th>\n",
-              "      <th>model_year</th>\n",
-              "      <th>mileage</th>\n",
-              "      <th>price_now</th>\n",
-              "      <th>0</th>\n",
-              "      <th>1</th>\n",
-              "      <th>2</th>\n",
-              "      <th>3</th>\n",
-              "      <th>4</th>\n",
-              "      <th>5</th>\n",
-              "      <th>6</th>\n",
-              "      <th>...</th>\n",
-              "      <th>555</th>\n",
-              "      <th>556</th>\n",
-              "      <th>557</th>\n",
-              "      <th>558</th>\n",
-              "      <th>559</th>\n",
-              "      <th>560</th>\n",
-              "      <th>561</th>\n",
-              "      <th>562</th>\n",
-              "      <th>563</th>\n",
-              "      <th>564</th>\n",
-              "    </tr>\n",
-              "  </thead>\n",
-              "  <tbody>\n",
-              "    <tr>\n",
-              "      <th>0</th>\n",
-              "      <td>1987.0</td>\n",
-              "      <td>132000.0</td>\n",
-              "      <td>16250.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1</th>\n",
-              "      <td>1970.0</td>\n",
-              "      <td>93000.0</td>\n",
-              "      <td>84050.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>2</th>\n",
-              "      <td>1970.0</td>\n",
-              "      <td>2.0</td>\n",
-              "      <td>500000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>3</th>\n",
-              "      <td>2018.0</td>\n",
-              "      <td>1200.0</td>\n",
-              "      <td>435000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>4</th>\n",
-              "      <td>1965.0</td>\n",
-              "      <td>148.0</td>\n",
-              "      <td>755000.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>...</th>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1374</th>\n",
-              "      <td>1976.0</td>\n",
-              "      <td>59000.0</td>\n",
-              "      <td>76000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1375</th>\n",
-              "      <td>2023.0</td>\n",
-              "      <td>4600.0</td>\n",
-              "      <td>186000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1376</th>\n",
-              "      <td>1961.0</td>\n",
-              "      <td>17000.0</td>\n",
-              "      <td>148000.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1377</th>\n",
-              "      <td>1988.0</td>\n",
-              "      <td>100000.0</td>\n",
-              "      <td>80000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1378</th>\n",
-              "      <td>1958.0</td>\n",
-              "      <td>4300.0</td>\n",
-              "      <td>699356.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "  </tbody>\n",
-              "</table>\n",
-              "<p>1232 rows × 568 columns</p>\n",
-              "</div>"
-            ],
-            "text/plain": [
-              "      model_year   mileage  price_now    0    1    2    3    4    5    6  ...  \\\n",
-              "0         1987.0  132000.0    16250.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "1         1970.0   93000.0    84050.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "2         1970.0       2.0   500000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "3         2018.0    1200.0   435000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "4         1965.0     148.0   755000.0  1.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "...          ...       ...        ...  ...  ...  ...  ...  ...  ...  ...  ...   \n",
-              "1374      1976.0   59000.0    76000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "1375      2023.0    4600.0   186000.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "1376      1961.0   17000.0   148000.0  1.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "1377      1988.0  100000.0    80000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "1378      1958.0    4300.0   699356.0  1.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "\n",
-              "      555  556  557  558  559  560  561  562  563  564  \n",
-              "0     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "1     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "2     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "3     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "4     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "...   ...  ...  ...  ...  ...  ...  ...  ...  ...  ...  \n",
-              "1374  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "1375  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "1376  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "1377  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "1378  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "\n",
-              "[1232 rows x 568 columns]"
-            ]
-          },
-          "execution_count": 5,
-          "metadata": {},
-          "output_type": "execute_result"
-        }
-      ],
-      "source": [
-        "# Clean the data\n",
-        "## Manage categorical values - One-hot encoding\n",
-        "object_cols = [col for col in X.columns                                 # get all columns that have categorical data\n",
-        "               if X[col].dtype == 'object']\n",
-        "oh = OneHotEncoder(handle_unknown='ignore', sparse_output=False)                     # define encoder\n",
-        "cols_oh = pd.DataFrame(oh.fit_transform(X[object_cols]))                             # add new OH columns to the X df\n",
-        "\n",
-        "## Ensure new X dataframe has the same col names\n",
-        "cols_oh.index = X.index\n",
-        "\n",
-        "## Get numerical columns in X dataframes\n",
-        "num_X = X.drop(object_cols, axis=1)\n",
-        "\n",
-        "## Combine categorical and numerical columns in X dataframes\n",
-        "X_oh = pd.concat([num_X, cols_oh], axis=1)\n",
-        "\n",
-        "## Ensure all column names are strings\n",
-        "X_oh.columns = X_oh.columns.astype(str)\n",
-        "X_oh"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 6,
-      "id": "c54b27fc",
-      "metadata": {},
-      "outputs": [
-        {
-          "data": {
-            "text/html": [
-              "<div>\n",
-              "<style scoped>\n",
-              "    .dataframe tbody tr th:only-of-type {\n",
-              "        vertical-align: middle;\n",
-              "    }\n",
-              "\n",
-              "    .dataframe tbody tr th {\n",
-              "        vertical-align: top;\n",
-              "    }\n",
-              "\n",
-              "    .dataframe thead th {\n",
-              "        text-align: right;\n",
-              "    }\n",
-              "</style>\n",
-              "<table border=\"1\" class=\"dataframe\">\n",
-              "  <thead>\n",
-              "    <tr style=\"text-align: right;\">\n",
-              "      <th></th>\n",
-              "      <th>model_year</th>\n",
-              "      <th>mileage</th>\n",
-              "      <th>price_now</th>\n",
-              "      <th>0</th>\n",
-              "      <th>1</th>\n",
-              "      <th>2</th>\n",
-              "      <th>3</th>\n",
-              "      <th>4</th>\n",
-              "      <th>5</th>\n",
-              "      <th>6</th>\n",
-              "      <th>...</th>\n",
-              "      <th>555</th>\n",
-              "      <th>556</th>\n",
-              "      <th>557</th>\n",
-              "      <th>558</th>\n",
-              "      <th>559</th>\n",
-              "      <th>560</th>\n",
-              "      <th>561</th>\n",
-              "      <th>562</th>\n",
-              "      <th>563</th>\n",
-              "      <th>564</th>\n",
-              "    </tr>\n",
-              "  </thead>\n",
-              "  <tbody>\n",
-              "    <tr>\n",
-              "      <th>365</th>\n",
-              "      <td>2023.0</td>\n",
-              "      <td>17000.0</td>\n",
-              "      <td>148000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>197</th>\n",
-              "      <td>1991.0</td>\n",
-              "      <td>82000.0</td>\n",
-              "      <td>128964.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1337</th>\n",
-              "      <td>2018.0</td>\n",
-              "      <td>174.0</td>\n",
-              "      <td>560000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>722</th>\n",
-              "      <td>1998.0</td>\n",
-              "      <td>59000.0</td>\n",
-              "      <td>146000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>748</th>\n",
-              "      <td>1976.0</td>\n",
-              "      <td>75000.0</td>\n",
-              "      <td>30250.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>...</th>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "      <td>...</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>854</th>\n",
-              "      <td>1983.0</td>\n",
-              "      <td>75000.0</td>\n",
-              "      <td>68500.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>934</th>\n",
-              "      <td>2024.0</td>\n",
-              "      <td>4700.0</td>\n",
-              "      <td>97000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>1363</th>\n",
-              "      <td>2000.0</td>\n",
-              "      <td>36000.0</td>\n",
-              "      <td>47500.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>617</th>\n",
-              "      <td>2003.0</td>\n",
-              "      <td>97000.0</td>\n",
-              "      <td>47000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "    <tr>\n",
-              "      <th>767</th>\n",
-              "      <td>2016.0</td>\n",
-              "      <td>5600.0</td>\n",
-              "      <td>97000.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>1.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>...</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "      <td>0.0</td>\n",
-              "    </tr>\n",
-              "  </tbody>\n",
-              "</table>\n",
-              "<p>924 rows × 568 columns</p>\n",
-              "</div>"
-            ],
-            "text/plain": [
-              "      model_year  mileage  price_now    0    1    2    3    4    5    6  ...  \\\n",
-              "365       2023.0  17000.0   148000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "197       1991.0  82000.0   128964.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "1337      2018.0    174.0   560000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "722       1998.0  59000.0   146000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "748       1976.0  75000.0    30250.0  0.0  0.0  1.0  0.0  0.0  0.0  0.0  ...   \n",
-              "...          ...      ...        ...  ...  ...  ...  ...  ...  ...  ...  ...   \n",
-              "854       1983.0  75000.0    68500.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "934       2024.0   4700.0    97000.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "1363      2000.0  36000.0    47500.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "617       2003.0  97000.0    47000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "767       2016.0   5600.0    97000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
-              "\n",
-              "      555  556  557  558  559  560  561  562  563  564  \n",
-              "365   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "197   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "1337  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "722   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "748   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "...   ...  ...  ...  ...  ...  ...  ...  ...  ...  ...  \n",
-              "854   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "934   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "1363  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "617   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "767   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
-              "\n",
-              "[924 rows x 568 columns]"
-            ]
-          },
-          "execution_count": 6,
-          "metadata": {},
-          "output_type": "execute_result"
-        }
-      ],
-      "source": [
-        "# Train\n",
-        "train_X, val_X, train_y, val_y = train_test_split(X_oh, y, random_state=0)\n",
-        "train_X"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 7,
-      "id": "e416bd6e",
-      "metadata": {},
-      "outputs": [
-        {
-          "name": "stdout",
-          "output_type": "stream",
-          "text": [
-            "Random Forest\n",
-            "Max leaf nodes: 5\t\tMAE: 0.2726298701298701\n",
-            "Max leaf nodes: 50\t\tMAE: 0.2748376623376624\n",
-            "Max leaf nodes: 500\t\tMAE: 0.27405844155844156\n",
-            "Max leaf nodes: 5000\t\tMAE: 0.27438311688311684\n",
-            "Max leaf nodes: 50000\t\tMAE: 0.27269480519480516\n"
-          ]
-        }
-      ],
-      "source": [
-        "# Choose best max number of leaf nodes in Random Forest\n",
-        "def get_mae(train_X, val_X, train_y, val_y, model):\n",
-        "    model.fit(train_X, train_y)\n",
-        "    preds = model.predict(val_X)\n",
-        "    mae = mean_absolute_error(val_y, preds)\n",
-        "    return mae\n",
-        "\n",
-        "model1 = RandomForestRegressor()\n",
-        "print('Random Forest')\n",
-        "for max_nodes in [5, 50, 500, 5000, 50000]:\n",
-        "    nodes_mae1 = get_mae(train_X, val_X, train_y, val_y, model=model1)\n",
-        "    print(f'Max leaf nodes: {max_nodes}\\t\\tMAE: {nodes_mae1}')"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 8,
-      "id": "48336b31",
-      "metadata": {},
-      "outputs": [
-        {
-          "name": "stdout",
-          "output_type": "stream",
-          "text": [
-            "Random Forest accuracy: 43.91%\n"
-          ]
-        }
-      ],
-      "source": [
-        "# Random Forest: Define and fit the model\n",
-        "model1 = RandomForestRegressor(max_leaf_nodes=500)\n",
-        "model1.fit(train_X, train_y)\n",
-        "\n",
-        "# Inference\n",
-        "preds1 = model1.predict(val_X)\n",
-        "\n",
-        "print(f'Random Forest accuracy: {round(model1.score(val_X, val_y)*100, 2)}%')"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 9,
-      "id": "589422fb",
-      "metadata": {},
-      "outputs": [
-        {
-          "name": "stdout",
-          "output_type": "stream",
-          "text": [
-            "Logistic Regression accuracy: 61.69%\n"
-          ]
-        }
-      ],
-      "source": [
-        "# Logistic Regression: Define and fit the model\n",
-        "model2 = LogisticRegression(max_iter=10000)\n",
-        "model2.fit(train_X, train_y)\n",
-        "\n",
-        "# Inference\n",
-        "preds2 = model2.predict(val_X)\n",
-        "\n",
-        "print(f'Logistic Regression accuracy: {round(model2.score(val_X, val_y)*100, 2)}%')"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 10,
-      "id": "03f7f2da",
-      "metadata": {},
-      "outputs": [
-        {
-          "name": "stdout",
-          "output_type": "stream",
-          "text": [
-            "\n",
-            "Random Forest            \n",
-            "\tAccuracy: 81.0%            \n",
-            "\tPrecision: 78.0%            \n",
-            "\tRecall: 83.0%            \n",
-            "\tF1-score: 81.0%\n",
-            "\n",
-            "Logistic Regression            \n",
-            "\tAccuracy: 62.0%            \n",
-            "\tPrecision: 59.0%            \n",
-            "\tRecall: 71.0%            \n",
-            "\tF1-score: 64.0%\n",
-            "\n",
-            "The best model is using the Random Forest Regressor.\n"
-          ]
-        }
-      ],
-      "source": [
-        "# Evaluate model1 and model2\n",
-        "for name, model in [('Random Forest', model1), ('Logistic Regression', model2)]:\n",
-        "    pred_y = model.predict(val_X)\n",
-        "    # Convert inference/prediction made by Random Forest model to readable output\n",
-        "    if model == model1:\n",
-        "        pred_y = np.round(pred_y).astype(int)\n",
-        "    print(f'\\n{name}\\\n",
-        "            \\n\\tAccuracy: {round(accuracy_score(val_y, pred_y), 2)*100}%\\\n",
-        "            \\n\\tPrecision: {round(precision_score(val_y, pred_y), 2)*100}%\\\n",
-        "            \\n\\tRecall: {round(recall_score(val_y, pred_y), 2)*100}%\\\n",
-        "            \\n\\tF1-score: {round(f1_score(val_y, pred_y), 2)*100}%')\n",
-        "\n",
-        "print('\\nThe best model is using the Random Forest Regressor.')"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 11,
-      "id": "5e52a51e",
-      "metadata": {},
-      "outputs": [
-        {
-          "data": {
-            "image/png": "iVBORw0KGgoAAAANSUhEUgAAAxYAAAHqCAYAAACZcdjsAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAAPYQAAD2EBqD+naQAARChJREFUeJzt3Qm4TfX+x/EvDsd4jGXIWIZcoQghUYTCbR5dQ8RNEaXJLVOEQpHSoEKlXMWt20Cl0i1XKZWQhLhUJMpcxvV/Pr//s/az93GOc47fmc/79Tzbsddee+017b1/n/Ubdr4gCAIDAAAAAA/5fZ4MAAAAAAQLAAAAAOmCGgsAAAAA3ggWAAAAALwRLAAAAAB4I1gAAAAA8EawAAAAAOCNYAEAAADAG8ECAAAAgDeCBQDkcocPH7a77rrLqlSpYvnz57dLL700q1cpWxkxYoTly5fPtm/fntWrkits3LjR7c8ZM2ak63KrV69uPXv2tLwo8bYvWrTI7WP9BbITggWQBfSFqy+FpG733HNPhrzmf//7X1eA2rlzp2XX/fHFF19YTjV16tR0L0gl56WXXrJJkyalev7nnnvOxo8fb1deeaXNnDnTbrvttgxdvzZt2sSc02XKlLEmTZq49Th69GiGvnZOOl+0b5o1a5bVq5KtZMfPqcSf14ULF7batWtb//797ZdffrGc5O2333b7F8gocRm2ZAApuv/++61GjRox084444wM+8IeOXKku+pVqlQpjk4GFBTLlSuXKVdUFSxWrlxpgwYNStX8H3zwgZ1yyin2yCOPWGapXLmyjR071v3/119/teeff9569+5t33//vY0bN87yulmzZrmr0EuXLrV169ZZzZo1LbeoVq2a/fHHH1awYMF0/Zxas2aNq3HL6s/rP//80z755BN74oknXEFd78WiRYtm6rqcd955bh8XKlQoTc/T+j7++OOEC2QYggWQhS666CI7++yzc/Qx2LdvnxUrVszyqv3792d6oSKttm3blq5hUrUOBw8edFduk1OyZEn729/+Frn/97//3erUqWOPPfaYjRo16oQKnSEV7FSgyspCpo8NGza4AvS8efPcflHIGD58eJY1k9PxTGsB9XjCq/rpLT4+3rLL5/WNN95oZcuWtYcffthef/11u+666zL181Hnfkbs44z6PEDekTM/lYE8Yv78+daqVSv3xVSiRAnr1KmTrVq1Kmaeb775xl3dO/XUU90He4UKFaxXr162Y8eOyDyq+r7zzjvd/3XFLazSV1vo47WH1vToavOwLfq3335r119/vZUuXdrOPffcyOMvvviiNW7c2IoUKeKav1x77bW2efPmE9p2bVPx4sVt06ZN1rlzZ/d/XXXX1TZZsWKFXXDBBW7f6AqpruIn1XzhP//5jyu8qRCQkJBg3bt3t99//z3JGod69eq5wkulSpXslltuOaY5hpr4qEZp2bJl7oqhAsU//vEPd+VZx+Wjjz6K7FvNK7/99pvdcccdVr9+fbcNWgcVUJYvXx6z7LDN9Jw5c+yBBx5wV/x1PNu2beuuaEevw1tvvWX/+9//Iq+l109KeGw//PBDt37h/GG7bBV6Bg8e7PpeaLtV8J8wYYIFQRCzHD1HzT5UAA730YIFC9J0PLWvzjnnHPeaqsGQH374wa666ip3roSPa9uS2i+zZ8+2++67z50Dmnf37t126NAhd3W7Vq1abl/pGOt8fO+992KW8d1339nVV19tJ510kjs3tZ333nvvMeuo4x1eKVcwuuGGG1xwTMz3PNd+1HtH72c1T9P95I6djodqmnSO6/Vat27trpAn9V7R/uzQoYN7T+gc1hX26GMZvUw1pTvttNPcsdT7OdxPWh9tk/anCtH//ve/k9xPak6n807P17mq91XYRyWpzxTfz6nk+lik5RxK6b2VVvr8CYNi9HFYv369XXzxxe4zu2vXrpHCt/a53j967fLly7vPpcSfRTpeo0ePduuo7Tn//POP+cw/Xh+Lzz77zL22zi+dBw0aNLDJkydH1i/8/Ixu2hXKzM8D5F7UWABZaNeuXcd0GFVzGnnhhResR48erqDw4IMPugKOqt5VcPrqq68ihUkVovTlqkKQvqz1JfT000+7v59++qn7Erj88stdE5SXX37ZFVLC11BBKyzkpYW+yFWYGzNmTORLR1/YQ4cOdQU4Xc3TcqdMmeIK4FrfE7lifuTIEVcI1zIeeugh90WmLzR9YapgqC9tbduTTz7pCjbNmzc/pmmZ5tdrq9CiphTahyqUh1/MosdUQG3Xrp3169cvMt/nn39uixcvjrm6roKQ1kmFSV2RVwFBhf0BAwa4QkVYYNV00bF57bXX3D7TuqlN9lNPPeUKiCrQqQAYTc2EdDVSYUTnh7Zb26kCg2j5mv7jjz9GmjbpdZOi46vzSMdm7969kaZJdevWdcftr3/9qwsdaqJ05pln2jvvvOMKdj/99NMxzabUnEoFM+1PnT/JhZnj0b4oUKCAOx7aDy1atHDn9a233upCgfp/aJ1effVVu+yyy2Keq1oOXVXXfjlw4ID7v46btknnW9OmTV3YUD+dL7/80i688MJIgVbhXMewb9++br1V8HvjjTfcfommc1fHSMvUMp555hk7+eST3fsvlB7nuc5jnbfaBl3pDs819UNJTE3I9uzZ44KuampUSFSBVsE6PMfC90rHjh1dwVrnjAp6qgVRjYQCRrTp06e7ZWl/qFCoQrk+L1q2bOmCm/p56T2m462O/nPnzo0cD51H2p+rV692waBRo0buM0wBROdk+NmSmO/nVFLSeg6l9N5KK51HotcNaX/rM1uf0yqUh7WZChEKWtp+ravCiGrvdM5Ef8YMGzbMBQuFA910HrZv397VCKRE+1gXYSpWrGgDBw50+1nH6c0333T3tQ4///yzm0+fC9Gy4vMAuVQAINNNnz5dpfEkb7Jnz56gVKlSQZ8+fWKet3Xr1qBkyZIx0/fv33/M8l9++WW3rP/85z+RaePHj3fTNmzYEDOv7mu61ikxTR8+fHjkvv6vadddd13MfBs3bgwKFCgQPPDAAzHTV6xYEcTFxR0zPbn98fnnn0em9ejRw00bM2ZMZNrvv/8eFClSJMiXL18we/bsyPTvvvvumHUNl9m4cePg4MGDkekPPfSQm/7666+7+9u2bQsKFSoUtG/fPjhy5Ehkvscee8zN99xzz0WmtW7d2k178sknj9mGevXquccT+/PPP2OWG+7z+Pj44P77749M+/DDD92y69atGxw4cCAyffLkyW669mWoU6dOQbVq1YLU0npp/aK99tprbrmjR4+OmX7llVe6/btu3brINM2XP3/+YNWqVal+vdNPPz349ddf3W316tXBrbfe6pbTpUsXN8+gQYPc/Y8//jjyPJ33NWrUCKpXrx7ZZ+F+OfXUU4851xs2bOj2xfGcd955QYkSJYL//e9/MdOPHj16zHndq1evmHkuu+yyoGzZsul2nssXX3zhXuu9996LrEflypWDgQMHJvm+1Pn+448/RqZ/9tlnbvptt912zHtlwIABMdunfaNzW8cgepkJCQnuvI/Wtm3boH79+u58jV5GixYtglq1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jlHOwHHK/jhGOQPHKftLyIFlh9Re7KbzNgAAAABvBAsAAAAA3ggW2Ux8fLwNHz7c/UX2xXHK/jhGOQPHKfvjGOUMHKfsLz4PlPHyBakZOwoAAAAAjoMaCwAAAADeCBYAAAAAvBEsAAAAAHgjWGSCxx9/3KpXr26FCxe2Zs2a2dKlS487/yuvvGKnn366m79+/fr29ttvxzyubjHDhg2zihUrWpEiRaxdu3a2du3aDN6K3C29j1HPnj0tX758MbeOHTtm8Fbkfmk5TqtWrbIrrrjCza/9P2nSJO9lIvOP0YgRI455L+m9h8w7TtOmTbNWrVpZ6dKl3U3fOYnn53sp+x8jvpey/jjNmzfPzj77bCtVqpQVK1bMzjzzTHvhhRdy13tJnbeRcWbPnh0UKlQoeO6554JVq1YFffr0CUqVKhX88ssvSc6/ePHioECBAsFDDz0UfPvtt8F9990XFCxYMFixYkVknnHjxgUlS5YMXnvttWD58uXBX//616BGjRrBH3/8waHMJseoR48eQceOHYMtW7ZEbr/99hvHJxOP09KlS4M77rgjePnll4MKFSoEjzzyiPcykfnHaPjw4UG9evVi3ku//vorhyITj9P1118fPP7448FXX30VrF69OujZs6f7Dvrxxx8j8/C9lP2PEd9LWX+cPvzww2DevHmu7LBu3bpg0qRJrjyxYMGCXPNeIlhksKZNmwa33HJL5P6RI0eCSpUqBWPHjk1y/quvvjro1KlTzLRmzZoFf//7393/jx496r6Ax48fH3l8586dQXx8vPtyRtYfo/AD/JJLLuFwZOFxilatWrUkC60+y0TmHCMFi4YNG7K705HveX/48OGgRIkSwcyZM919vpey/zESvpey33GSs846y12gzC3vJZpCZaCDBw/asmXLXDVWKH/+/O7+kiVLknyOpkfPLx06dIjMv2HDBtu6dWvMPPqZdVW/JbdMZO4xCi1atMhOPvlkq1OnjvXr18927NjBocjE45QVy8zLMnJ/qhlApUqV7NRTT7WuXbvapk2b0mGN86b0OE779++3Q4cOWZkyZdx9vpey/zEK8b2UfY5TEAT2/vvv25o1a+y8887LNe8lgkUG2r59ux05csTKly8fM133deIkRdOPN3/4Ny3LROYeI1F/iueff959aDz44IP20Ucf2UUXXeReC5lznLJimXlZRu1PfaHOmDHDFixYYE888YT74lVb8j179qTDWuc96XGc7r77bhf0wsIP30vZ/xgJ30vZ4zjt2rXLihcvboUKFbJOnTrZlClT7MILL8w176W4rF4BIDe69tprI/9X5+4GDRrYaaed5q4WtW3bNkvXDchJFMhDeh8paFSrVs3mzJljvXv3ztJ1y4vGjRtns2fPdp9l6qyKnHOM+F7KHkqUKGFff/217d271118vP32211tbJs2bSw3oMYiA5UrV84KFChgv/zyS8x03a9QoUKSz9H0480f/k3LMpG5xygp+tDQa61bt47DkUnHKSuWmZdl1v7UaCq1a9fmvZQFx2nChAmu0Pruu++6kBfieyn7H6Ok8L2UNccpf/78VrNmTTci1ODBg+3KK6+0sWPH5pr3EsEiA6maq3Hjxi6Rho4ePeruN2/ePMnnaHr0/PLee+9F5q9Ro4Y7uaLn2b17t3322WfJLhOZe4yS8uOPP7o+Fho+DplznLJimXlZZu1PXeVbv34976VMPk4PPfSQjRo1yjVJ03CZ0fheyv7HKCl8L2XNcUpMzzlw4EDueS9lde/xvDAUmXrzz5gxww0v1rdvXzcU2datW93j3bp1C+65556YoUzj4uKCCRMmuCHjNCJKUsPNahmvv/568M0337jRh3LSUGS5/Rjt2bPHDaG5ZMmSYMOGDcHChQuDRo0aBbVq1Qr+/PPPLNvOvHacDhw44IZe1K1ixYrumOj/a9euTfUykfXHaPDgwcGiRYvce0nvvXbt2gXlypULtm3bxuHJpOOk7xwNqfnqq6/GDPurz7roefheyr7HiO+l7HGcxowZE7z77rvB+vXr3fwqR6g8MW3atFzzXiJYZIIpU6YEVatWdW96DU326aefRh5r3bq1GwIu2pw5c4LatWu7+TV++1tvvRXzuIYjGzp0aFC+fHl3Qrdt2zZYs2ZNZmxKrpWex2j//v1B+/btg5NOOskFDg2jqbGtKaxm7nFSQVTXThLfNF9ql4msP0bXXHONCx1a3imnnOLua/x3ZN5x0mdYUsdJF1VCfC9l72PE91L2OE733ntvULNmzaBw4cJB6dKlg+bNm7twEi2nv5fy6Z+srjUBAAAAkLPRxwIAAACAN4IFAAAAAG8ECwAAAADeCBYAAAAAvBEsAAAAAHgjWAAAAADwRrAAAAAA4I1gAQAAAMAbwQIAAACAN4IFAMBLz5497dJLL82We3Hjxo2WL18++/rrr7N6VQAg1yNYAABypYMHD2b1KgBAnkKwAACkmzZt2tiAAQNs0KBBVrp0aStfvrxNmzbN9u3bZzfccIOVKFHCatasafPnz488Z9GiRa5W4a233rIGDRpY4cKF7ZxzzrGVK1fGLHvu3LlWr149i4+Pt+rVq9vEiRNjHte0UaNGWffu3S0hIcH69u1rNWrUcI+dddZZ7jW0fvL555/bhRdeaOXKlbOSJUta69at7csvv4xZnuZ/5pln7LLLLrOiRYtarVq17N///nfMPKtWrbLOnTu719O2tWrVytavXx95XM+vW7eu26bTTz/dpk6dytkGINciWAAA0tXMmTNdgX3p0qUuZPTr18+uuuoqa9GihSu8t2/f3rp162b79++Ped6dd97pwoIK/SeddJJ16dLFDh065B5btmyZXX311XbttdfaihUrbMSIETZ06FCbMWNGzDImTJhgDRs2tK+++so9rnWQhQsX2pYtW2zevHnu/p49e6xHjx72ySef2KeffupCw8UXX+ymRxs5cqR73W+++cY93rVrV/vtt9/cYz/99JOdd955Luh88MEHbh179eplhw8fdo/PmjXLhg0bZg888ICtXr3axowZ49ZJ+wcAcqUAAAAPPXr0CC655BL3/9atWwfnnntu5LHDhw8HxYoVC7p16xaZtmXLlkBfP0uWLHH3P/zwQ3d/9uzZkXl27NgRFClSJPjnP//p7l9//fXBhRdeGPO6d955Z/CXv/wlcr9atWrBpZdeGjPPhg0b3LK/+uqr427DkSNHghIlSgRvvPFGZJqed99990Xu7927102bP3++uz9kyJCgRo0awcGDB5Nc5mmnnRa89NJLMdNGjRoVNG/e/LjrAgA5FTUWAIB0peZMoQIFCljZsmWtfv36kWlqHiXbtm2LeV7z5s0j/y9TpozVqVPHXekX/W3ZsmXM/Lq/du1aO3LkSGTa2Wefnap1/OWXX6xPnz6upkJNodSUae/evbZp06Zkt6VYsWJuvnC91SFcTZ8KFix4zPLV9EtNonr37m3FixeP3EaPHh3TVAoAcpO4rF4BAEDukrigrb4K0dN0X44ePZrur63Cf2qoGdSOHTts8uTJVq1aNdecScEmcYfvpLYlXO8iRYoku3yFFFH/kmbNmsU8prAFALkRwQIAkC2or0PVqlXd/3///Xf7/vvvXcdn0d/FixfHzK/7tWvXPm5BvVChQu5vdK1G+Fx1pFa/Cdm8ebNt3749Teur2gz1l1A/kMQBRLUylSpVsh9++MH1ywCAvIBgAQDIFu6//37XbEqF8nvvvdd1AA9/H2Pw4MHWpEkTN+rTNddcY0uWLLHHHnssxVGWTj75ZFezsGDBAqtcubIbnUlNn9QE6oUXXnBNp3bv3u06jh+vBiIp/fv3tylTprgO5UOGDHHLVThq2rSpa8aljt+33nqrm96xY0c7cOCAffHFFy403X777V77CgCyI/pYAACyhXHjxtnAgQOtcePGtnXrVnvjjTciNQ6NGjWyOXPm2OzZs+2MM85woy0piOjH+Y4nLi7OHn30UXvqqadcDcIll1zipj/77LOugK/laoQqBQCFkLRQCNJoUGr2pOFqtd5q+hTWXtx4441uuNnp06e7PiaaR6NYhUPgAkBuk089uLN6JQAAeZd+x+L88893Bf1SpUpl9eoAAE4QNRYAAAAAvBEsAAAAAHijKRQAAAAAb9RYAAAAAPBGsAAAAADgjWABAAAAwBvBAgAAAIA3ggUAAAAAbwQLAAAAAN4IFgAAAAC8ESwAAAAAeCNYAAAAADBf/weQQEvLx11wmwAAAABJRU5ErkJggg==",
-            "text/plain": [
-              "<Figure size 800x500 with 1 Axes>"
-            ]
-          },
-          "metadata": {},
-          "output_type": "display_data"
-        }
-      ],
-      "source": [
-        "# Random Forest: Feature importance\n",
-        "importances = model1.feature_importances_\n",
-        "feature_names = train_X.columns.tolist()\n",
-        "\n",
-        "# Get feature names from OH to identify which OH columns belong to which features\n",
-        "oh_feature_names = oh.get_feature_names_out(object_cols)\n",
-        "\n",
-        "# Only show three features\n",
-        "desired_features = ['price_now', 'mileage', 'model_year', 'model_type']\n",
-        "filtered_importances = []\n",
-        "filtered_names = []\n",
-        "\n",
-        "# Add numerical features\n",
-        "for feature in desired_features:\n",
-        "    if feature in feature_names:\n",
-        "        idx = feature_names.index(feature)\n",
-        "        filtered_importances.append(importances[idx])\n",
-        "        filtered_names.append(feature)\n",
-        "\n",
-        "# Aggregate model_type and condition from their OH columns (num strings)\n",
-        "model_type_importance = 0\n",
-        "condition_importance = 0\n",
-        "\n",
-        "# Better approach: Get indices of all OH columns in feature_names\n",
-        "for i, name in enumerate(feature_names):\n",
-        "    # Check if i is a OH column\n",
-        "    if str(name).isdigit():\n",
-        "        # Which feature does this OH belong to?\n",
-        "        oh_idx = int(name)\n",
-        "        if oh_idx < len(oh_feature_names):\n",
-        "            oh_feature_name = oh_feature_names[oh_idx]\n",
-        "            if oh_feature_name.startswith('model_type'):\n",
-        "                model_type_importance += importances[i]\n",
-        "            elif oh_feature_name.startswith('condition'):\n",
-        "                condition_importance += importances[i]\n",
-        "\n",
-        "# Add aggregated categorical features\n",
-        "filtered_importances.append(model_type_importance)\n",
-        "filtered_names.append('model_type')\n",
-        "filtered_importances.append(condition_importance)\n",
-        "filtered_names.append('condition')\n",
-        "\n",
-        "plt.figure(figsize=(8,5))\n",
-        "plt.barh(filtered_names, filtered_importances)\n",
-        "plt.xlabel('Importance')\n",
-        "plt.title('Feature Important for Porsche Appreciation Predictor')\n",
-        "plt.tight_layout()\n",
-        "plt.savefig('feature_importance.jpg', dpi=300)\n",
-        "plt.show()"
-      ]
-    },
-    {
-      "cell_type": "code",
-      "execution_count": 12,
-      "id": "c6dfd49c",
-      "metadata": {},
-      "outputs": [],
-      "source": [
-        "# Save trained model\n",
-        "import os; os.makedirs('../data', exist_ok=True)\n",
-        "pickle.dump(model1, open('../data/porsche_model.pkl', 'wb'))\n",
-        "# Save OH encoder\n",
-        "pickle.dump(oh, open('../data/porsche_encoder.pkl', 'wb'))"
-      ]
-    },
-    {
-      "cell_type": "markdown",
-      "id": "b5f3c2c8",
-      "metadata": {},
-      "source": [
-        "# Model Performance\n",
-        "The **Random Forest** model achieved **78%** accuracy on the validation set, outperforming Logistic Regression (62% accuracy). The Random Forest model also showed strong performance across other metrics: **75%** precision, **83%** recall, and **79%** F1-score, indicating good balance between identifying appreciating Porsches and avoiding false positives.\n",
-        "\n",
-        "# Feature Importance Analysis\n",
-        "Feature importance analysis revealed that **price_now** is the strongest predictor of Porsche appreciation, with an importance score of approximately **0.30**. This suggests that **current market price** is a key indicator of whether a vehicle will appreciate.\n",
-        "\n",
-        "**Model year** and **mileage** follow with similar importance scores (**~0.13** and **~0.12**, respectively), indicating that both the **age** and **usage history** of the vehicle play meaningful roles in appreciation prediction.\n",
-        "\n",
-        "The categorical features model_type and condition also contribute to the model's predictions, though their aggregated importance is lower than the numerical features."
-      ]
-    }
-  ],
-  "metadata": {
-    "kernelspec": {
-      "display_name": "venv",
-      "language": "python",
-      "name": "python3"
-    },
-    "language_info": {
-      "codemirror_mode": {
-        "name": "ipython",
-        "version": 3
-      },
-      "file_extension": ".py",
-      "mimetype": "text/x-python",
-      "name": "python",
-      "nbconvert_exporter": "python",
-      "pygments_lexer": "ipython3",
-      "version": "3.11.9"
-    }
-  },
-  "nbformat": 4,
-  "nbformat_minor": 5
-}
-````
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-## File: README.md
-````markdown
-# Porsche Appreciation Predictor
+# Virtual environments
+venv/
+scraper/venv/
 
-An end-to-end multimodal AI system that analyses used Porsche listings — images and seller text — and outputs a condition report, market valuation, and 3-year appreciation prediction.
+# Data files (too large for git)
+project/data/images/
+project/data/descriptions/
+/project/data/csv/porsche_data.csv
 
----
+# Model files
+*.pkl
+*.h5
+*.model
 
-## Project Summary
+# Log files
+*.log
 
-```
-PROJECT:   Porsche Appreciation Predictor
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-OBJECTIVE: Build an end-to-end ML web app predicting Porsche value trends
+# OS
+.DS_Store
+Thumbs.db
 
-TECHNICAL STACK:
-  Data:       1,234 Porsche listings scraped from Bring a Trailer
-              Features: model type, year, mileage, condition, price (2025 & 2022)
-              Images:   up to 12 photos per listing (~14,800 images total)
-  Embeddings: CLIP (ViT-B/32) for images, all-MiniLM-L6-v2 for text
-  Vector DB:  Qdrant (on-disk) with cosine similarity search
-  ML Model:   Random Forest Classifier (scikit-learn), 78% accuracy
-  LLM:        Gemini (multimodal) for condition reports and valuation reasoning
-  Backend:    Flask, Python
-  Frontend:   HTML / CSS / JavaScript (vanilla, no framework)
-  Deployment: Run locally (see setup below)
+# Environment variables
+.env
+*.json
+!package*.json
 
-KEY RESULTS:
-  - Model achieves 78% accuracy on held-out test set
-  - Identified mileage as the strongest single predictor of depreciation
-  - 911 models show higher appreciation rates (70%) vs. Caymans (45%)
-  - Gemini condition report catches text/photo inconsistencies in real listings
-  - Deployed live web app with <100ms prediction latency (excluding LLM call)
 
-WHAT I LEARNED:
-  - End-to-end ML workflow: data collection → preprocessing → training → deployment
-  - Multimodal AI: combining vision embeddings (CLIP) with LLM reasoning (Gemini)
-  - Vector retrieval: building and querying a Qdrant similarity index
-  - Model evaluation: accuracy, precision, recall, F1, feature importance
-  - Pipeline engineering: chaining CLIP → Qdrant → Gemini → sklearn in one request
-  - Production Flask app: file upload handling, temp files, JSON API
-```
 
----
 
-## Architecture
 
-```mermaid
-flowchart TD
-    User["User (browser)"]
+# Environment variables
+.env
 
-    subgraph frontend [Frontend]
-        UI["HTML / CSS / JS: Upload + Results"]
-    end
+# Google Sheets credentials
+*.json
+!package*.json
 
-    subgraph backend [Flask Backend — app.py]
-        Route["/analyze POST route"]
-        CLIP["CLIP ViT-B/32: Image encoder"]
-        Qdrant["Qdrant Vector DB: Cosine similarity search"]
-        Gemini["Gemini (multimodal): Condition report + Valuation"]
-        SKLearn["Random Forest: Appreciation classifier"]
-        HistMatcher["Historical Matcher: years_ago.csv lookup"]
-    end
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-    User -->|"Upload image + seller text"| UI
-    UI -->|"POST /analyze (multipart)"| Route
-    Route --> CLIP
-    CLIP -->|"512-dim image vector"| Qdrant
-    Qdrant -->|"Top-10 similar listings"| Route
-    Route --> HistMatcher
-    HistMatcher -->|"Price 3 years ago"| Route
-    Route --> Gemini
-    Gemini -->|"Condition report JSON\n+ Valuation text"| Route
-    Route --> SKLearn
-    SKLearn -->|"will_appreciate + confidence"| Route
-    Route -->|"SSE stream (progress + result)"| UI
-    UI --> User
-```
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
----
-
-## Reasoning Flow
-
-How an image and seller text move through the pipeline in a single request:
-
-```
-1. USER UPLOADS IMAGE + (optional) seller description + asking price + (optional) mileage
-        |
-        v
-2. CLIP ENCODING
-   Image → 512-dimensional vector (normalised)
-        |
-        v
-3. QDRANT SIMILARITY SEARCH
-   Query vector → top-10 most visually similar listings from 1,234-listing index
-        |
-        v
-4. VEHICLE IDENTIFICATION  (majority vote on top-5 matches)
-   model_type  → most common among top-5
-   model_year  → median of top-5
-   condition   → most common among top-5
-   mileage     → median of top-5
-        |
-        v
-5. HISTORICAL PRICE LOOKUP
-   HistoricalMatcher queries years_ago.csv (BaT 2020-2022 sold listings)
-   Finds best price match within ±1 year, ±15% mileage, same condition
-        |
-        v
-6. GEMINI CONDITION REPORT  (multimodal)
-   Input:  uploaded image + seller description
-   Output: structured JSON
-           - overall grade + score (1-10)
-           - paint/body issues (location, severity)
-           - aftermarket modifications
-           - missing/damaged trim
-           - text-photo inconsistencies
-           - red flags
-           - recommended restoration steps
-        |
-        v
-7. GEMINI VALUATION  (multimodal)
-   Input:  uploaded image + vehicle info + similar listings + historical price
-   Output: VALUATION: $X,XXX  /  REASONING: ...  /  FACTORS: ...
-        |
-        v
-8. SKLEARN APPRECIATION PREDICTION
-   Features: model_year, model_type, mileage, condition,
-             current_valuation, price_3_years_ago
-   Output:   will_appreciate (bool) + confidence score
-        |
-        v
-9. SSE STREAM → browser updates real-time progress bar, then renders 4 result cards
-```
-
----
-
-## Why This Project Maps to Porsche AI
-
-| Capability | How it appears in this project |
-|---|---|
-| **Multimodal AI** | CLIP image embeddings + Gemini vision for condition analysis and valuation — images and text are processed jointly |
-| **Retrieval systems** | Qdrant vector DB with cosine similarity search over 1,234 listings; custom historical price matcher over 5,000+ BaT sold records |
-| **Pipeline engineering** | Six-stage chain (CLIP → Qdrant → HistoricalMatcher → Gemini × 2 → sklearn) streamed to the browser in real time via Server-Sent Events |
-| **LLM + vision integration** | Gemini receives raw PIL images alongside structured prompts; outputs both structured JSON (condition) and free-text (valuation) |
-| **ML modelling** | Random Forest trained on scraped real-world data; feature importance analysis identifies mileage as the dominant depreciation signal |
-| **Deployment** | Flask app with environment-variable secret management via \.env\; persistent on-disk Qdrant DB — runs locally on any machine with 4 GB+ RAM |
-| **Monitoring** | Model predictions logged per-request; pipeline step timing visible in server stdout; error states surfaced to the UI |
-| **Data engineering** | Custom Selenium scraper collects listings, images, and seller descriptions from Bring a Trailer; data cleaned and structured into CSVs |
-
----
-
-## Running Locally
-
-> **This app is not hosted online.** The ML models (CLIP + SentenceTransformer + PyTorch) require ~2–3 GB of RAM at runtime, which makes cloud hosting prohibitively expensive. Run it on your own machine instead — it works great locally.
-
-### System Requirements
-
-- Python 3.10 or 3.11
-- **4 GB RAM minimum** (models load ~800 MB into memory at startup)
-- A free Gemini API key — [get one at Google AI Studio](https://aistudio.google.com/apikey)
-
-### 1. Clone the repo
-
-```bash
-git clone https://github.com/petpeevephobia/porsche-appreciation-predictor.git
-cd porsche-appreciation-predictor
-```
-
-### 2. Create and activate a virtual environment
-
-```bash
-python -m venv venv
-```
-
-**Windows:**
-```bash
-venv\Scripts\activate
-```
-
-**macOS / Linux:**
-```bash
-source venv/bin/activate
-```
-
-### 3. Install dependencies
-
-PyTorch must be installed separately first (CPU-only build, ~700 MB):
-
-```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt
-```
-
-> This will take several minutes on first install. Total download is ~1.5 GB.
-
-### 4. Add your Gemini API key
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and set your key:
-
-```
-GEMINI_API_KEY=your_key_here
-```
-
-### 5. Place the data files
-
-The `project/data/` folder is not included in the repo (too large for git). You need:
-
-```
-project/data/
-├── csv/
-│   ├── porsche_data.csv        # 1,234 current listings
-│   └── years_ago.csv           # 5,000+ BaT 2020-2022 sold records
-├── qdrant_db/                  # On-disk Qdrant vector index
-├── porsche_model.pkl           # Trained Random Forest
-└── porsche_encoder.pkl         # Fitted OneHotEncoder
-```
-
-Contact the repo owner to obtain these files.
-
-### 6. Run the app
-
-```bash
-python app.py
-```
-
-Open [http://127.0.0.1:8080](http://127.0.0.1:8080) in your browser.
-
-> **First boot takes 30–90 seconds** while CLIP and SentenceTransformer load into memory. You will see progress printed in the terminal. Subsequent requests are fast once the models are loaded.
-
----
-
-### Notebooks (optional)
-
-The `project/notebooks/` folder contains the full development history:
-
-| Notebook | Purpose |
-|---|---|
-| `01_eda.ipynb` | Exploratory data analysis |
-| `02_preprocessing_and_training.ipynb` | Feature engineering + Random Forest training |
-| `03_multimodal_preprocessing.ipynb` | CLIP + SentenceTransformer embedding generation, Qdrant indexing |
-| `04_valuation_pipeline.ipynb` | End-to-end pipeline prototype |
-
----
-
-## Project Structure
-
-```
-porsche-appreciation-predictor/
-├── app.py                          # Flask app + full pipeline
-├── historical_matcher.py           # years_ago.csv price lookup
-├── condition_analyzer.py           # Rule-based condition classifier
-├── config.py                       # Paths and API config
-├── scraper.py                      # Selenium BaT scraper (data collection only)
-├── requirements.txt
-├── .env.example
-├── templates/
-│   └── index.html                  # Single-page UI
-├── static/
-│   └── style.css
-└── project/
-    ├── notebooks/                  # Development notebooks
-    └── data/                       # Not in git — copy manually
-        ├── csv/
-        │   ├── porsche_data.csv    # 1,234 current listings (training only)
-        │   └── years_ago.csv       # 5,000+ BaT 2020-2022 sold records (runtime)
-        ├── qdrant_db/              # On-disk vector index (runtime)
-        ├── porsche_model.pkl       # Trained Random Forest (runtime)
-        └── porsche_encoder.pkl     # Fitted OneHotEncoder (runtime)
-```
-````
-
-## File: requirements.txt
-````
-flask
-gunicorn
-numpy
-pandas
-pillow
-scikit-learn
-scipy
-sentence-transformers
-qdrant-client
-transformers
-git+https://github.com/openai/CLIP.git
-google-generativeai
-google-genai
-python-dotenv
-httpx
-requests
-tqdm
+# OS
+.DS_Store
+Thumbs.db
 ````
 
 ## File: static/style.css
@@ -17805,4 +15747,2537 @@ nav {
     </script>
 </body>
 </html>
+````
+
+## File: app.py
+````python
+import os
+import sys
+import re
+import json
+import pickle
+import tempfile
+
+import numpy as np
+import pandas as pd
+import torch
+import clip
+from collections import Counter
+from PIL import Image
+
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from sentence_transformers import SentenceTransformer
+from qdrant_client import QdrantClient
+import google.genai as genai
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(ROOT, 'project', 'data')
+
+# #region agent log
+_dbg_pkl_m = os.path.join(DATA, 'porsche_model.pkl')
+_dbg_pkl_e = os.path.join(DATA, 'porsche_encoder.pkl')
+try:
+    _dbg_pkl_names = [f for f in os.listdir(DATA) if f.endswith('.pkl')]
+except FileNotFoundError:
+    _dbg_pkl_names = ['<DATA_DIR_MISSING>']
+_dbg_payload = {
+    'sessionId': '08e1f3',
+    'runId': 'pre-fix',
+    'hypothesisId': 'H1',
+    'location': 'app.py:after_DATA',
+    'message': 'paths and pickle presence',
+    'data': {
+        'ROOT': ROOT,
+        'DATA': DATA,
+        'cwd': os.getcwd(),
+        'model_pkl_exists': os.path.exists(_dbg_pkl_m),
+        'encoder_pkl_exists': os.path.exists(_dbg_pkl_e),
+        'pkl_basenames_in_DATA': _dbg_pkl_names,
+        'hypothesis_notes': 'H1=artifacts never built; H2=wrong ROOT/DATA; H3=rename mismatch; H4=ignored/gitignored',
+    },
+    'timestamp': int(__import__('time').time() * 1000),
+}
+try:
+    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f:
+        _dbg_f.write(json.dumps(_dbg_payload) + '\n')
+except OSError:
+    pass
+# #endregion
+
+_missing_required = [p for p in (_dbg_pkl_m, _dbg_pkl_e) if not os.path.exists(p)]
+if _missing_required:
+    # #region agent log
+    _dbg_miss = {
+        'sessionId': '08e1f3',
+        'runId': 'post-fix',
+        'hypothesisId': 'VERIFY',
+        'location': 'app.py:missing_required_pkl',
+        'message': 'fail-fast exit before heavy model load',
+        'data': {'missing_paths': _missing_required},
+        'timestamp': int(__import__('time').time() * 1000),
+    }
+    try:
+        with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fm:
+            _dbg_fm.write(json.dumps(_dbg_miss) + '\n')
+    except OSError:
+        pass
+    # #endregion
+    print('\nMissing required trained model files:')
+    for _p in _missing_required:
+        print(f'  - {_p}')
+    print(
+        '\nGenerate them by running `project/notebooks/02_preprocessing_and_training.ipynb` '
+        '(pickle outputs go under project/data/). See PORTABILITY.md.\n'
+    )
+    sys.exit(1)
+
+# #region agent log
+_dbg_ok = {
+    'sessionId': '08e1f3',
+    'runId': 'post-fix',
+    'hypothesisId': 'VERIFY',
+    'location': 'app.py:required_pkl_ok',
+    'message': 'both sklearn pickle paths exist; continuing startup',
+    'data': {'model': _dbg_pkl_m, 'encoder': _dbg_pkl_e},
+    'timestamp': int(__import__('time').time() * 1000),
+}
+try:
+    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fok:
+        _dbg_fok.write(json.dumps(_dbg_ok) + '\n')
+except OSError:
+    pass
+# #endregion
+
+from historical_matcher import HistoricalMatcher
+
+# ── Load all models once at startup ───────────────────────────────────────────
+print('Loading models ...')
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+clip_model, clip_preprocess = clip.load('ViT-B/32', device=device)
+print('  CLIP ready')
+
+text_model = SentenceTransformer('all-MiniLM-L6-v2')
+print('  SentenceTransformer ready')
+
+qdrant = QdrantClient(path=os.path.join(DATA, 'qdrant_db'))
+print('  Qdrant ready')
+
+# #region agent log
+_dbg_open_path = os.path.join(DATA, 'porsche_model.pkl')
+_dbg_payload2 = {
+    'sessionId': '08e1f3',
+    'runId': 'pre-fix',
+    'hypothesisId': 'H2',
+    'location': 'app.py:before_porsche_model_open',
+    'message': 'immediately before model pickle open',
+    'data': {'open_path': _dbg_open_path, 'exists': os.path.exists(_dbg_open_path)},
+    'timestamp': int(__import__('time').time() * 1000),
+}
+try:
+    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f2:
+        _dbg_f2.write(json.dumps(_dbg_payload2) + '\n')
+except OSError:
+    pass
+# #endregion
+
+with open(os.path.join(DATA, 'porsche_model.pkl'), 'rb') as f:
+    appreciation_model = pickle.load(f)
+with open(os.path.join(DATA, 'porsche_encoder.pkl'), 'rb') as f:
+    appreciation_encoder = pickle.load(f)
+print('  sklearn models ready')
+
+historical_matcher = HistoricalMatcher()
+historical_matcher.load_historical_listings_from_csv()
+print('  HistoricalMatcher ready')
+
+GEMINI_MODEL  = os.getenv('GEMINI_MODEL', 'gemini-3.1-flash-lite-preview')
+gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+print('  Gemini client ready')
+print('All models loaded.\n')
+
+# ── Pipeline functions ─────────────────────────────────────────────────────────
+
+def find_similar_listings(image_path, top_k=10):
+    image = Image.open(image_path).convert('RGB')
+    tensor = clip_preprocess(image).unsqueeze(0).to(device)
+    with torch.no_grad():
+        feats = clip_model.encode_image(tensor)
+        feats = feats / feats.norm(dim=1, keepdim=True)
+
+    results = qdrant.query_points(
+        collection_name='porsche_images',
+        query=feats.cpu().numpy()[0].tolist(),
+        limit=top_k,
+    )
+    return [
+        {
+            'listing_id': r.payload['listing_id'],
+            'model_year':  r.payload['model_year'],
+            'model_type':  r.payload['model_type'],
+            'mileage':     r.payload['mileage'],
+            'condition':   r.payload['condition'],
+            'price_now':   r.payload['price_now'],
+            'source':      r.payload['source'],
+        }
+        for r in results.points
+    ]
+
+
+def extract_vehicle_info(similar_listings):
+    if not similar_listings:
+        return None
+    top5 = similar_listings[:5]
+
+    model_type = Counter(l['model_type'] for l in top5).most_common(1)[0][0]
+    years      = [float(l['model_year']) for l in top5 if pd.notna(l['model_year'])]
+    model_year = int(np.median(years)) if years else None
+    condition  = Counter(l['condition'] for l in top5).most_common(1)[0][0]
+    mileages   = [l['mileage'] for l in top5 if pd.notna(l['mileage'])]
+    mileage    = int(np.median(mileages)) if mileages else None
+
+    return {
+        'model_type':        model_type,
+        'model_year':        model_year,
+        'condition':         condition,
+        'mileage':           mileage,
+        'similar_listings':  similar_listings,
+    }
+
+
+def get_historical_price(vehicle_info):
+    target = {
+        'model_year': str(vehicle_info['model_year']),
+        'model_type': vehicle_info['model_type'],
+        'mileage':    vehicle_info.get('mileage', ''),
+        'condition':  vehicle_info['condition'],
+    }
+    result = historical_matcher.calculate_price_3_years_ago(target)
+    return None if result == 'insufficient_data' else result
+
+
+_CONDITION_PROMPT = """
+You are a certified Porsche pre-purchase inspection specialist with 20+ years of experience.
+Examine every photo of this used Porsche listing carefully.
+
+Seller description:
+\"\"\"
+{seller_text}
+\"\"\"
+
+Return ONLY valid JSON — no markdown fences, no commentary — matching this exact schema:
+{{
+  "overall_condition_grade": "Excellent|Good|Fair|Poor",
+  "condition_score": <float 1.0-10.0>,
+  "paint_and_body": {{
+    "issues_found": [{{"location": "", "severity": "minor|moderate|severe", "description": ""}}],
+    "panel_gaps_even": true,
+    "repaint_evidence": false,
+    "repaint_notes": ""
+  }},
+  "aftermarket_modifications": [{{"item": "", "description": "", "oem_compliant": true}}],
+  "missing_or_damaged_trim": [{{"item": "", "location": "", "severity": ""}}],
+  "interior_condition": {{"grade": "", "issues": []}},
+  "text_photo_inconsistencies": [{{"claim_in_text": "", "what_photos_show": "", "severity": ""}}],
+  "red_flags": [],
+  "recommended_restoration_steps": [],
+  "summary": ""
+}}
+
+Only report issues directly observable in the photos or that contradict the seller text.
+Use empty lists [] for categories with no issues.
+"""
+
+
+def generate_condition_report(image_path, seller_text=''):
+    prompt = _CONDITION_PROMPT.format(
+        seller_text=seller_text.strip() or 'Not provided.'
+    )
+    image = Image.open(image_path).convert('RGB')
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[prompt, image],
+    )
+    raw = response.text.strip()
+    # Strip markdown fences if Gemini adds them despite instructions
+    raw = re.sub(r'^```(?:json)?\s*', '', raw)
+    raw = re.sub(r'\s*```$', '', raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {
+            'overall_condition_grade': 'Unknown',
+            'condition_score': None,
+            'paint_and_body': {'issues_found': [], 'panel_gaps_even': None,
+                               'repaint_evidence': None, 'repaint_notes': ''},
+            'aftermarket_modifications': [],
+            'missing_or_damaged_trim': [],
+            'interior_condition': {'grade': 'Unknown', 'issues': []},
+            'text_photo_inconsistencies': [],
+            'red_flags': [],
+            'recommended_restoration_steps': [],
+            'summary': raw,  # surface raw text so user sees something
+        }
+
+
+def generate_valuation(image_path, vehicle_info, similar_listings,
+                       price_3_years_ago, current_price=None, user_mileage=None):
+    similar_summary = '\n'.join(
+        f"- {l['model_type']} {l['model_year']} ({l['condition']}, "
+        f"{l['mileage']}mi, USD{int(l['price_now']):,})"
+        for l in similar_listings[:5]
+    )
+    mileage_line = (f"- Mileage: {int(user_mileage):,} mi"
+                    if user_mileage is not None else "")
+    prompt = f"""
+You are an expert Porsche appraiser with 20 years of experience.
+Analyse this Porsche listing and provide a market valuation.
+
+Vehicle Information (from image matching):
+- Model Type: {vehicle_info['model_type']}
+- Model Year: {vehicle_info['model_year']}
+- Condition: {vehicle_info['condition']}
+{mileage_line}
+Similar Historical Listings (from vector search):
+{similar_summary}
+
+Historical Price (3 years ago): {"${:,}".format(price_3_years_ago) if price_3_years_ago else "Unknown"}
+Current Asking Price: {"${:,}".format(int(current_price)) if current_price else "Not provided"}
+
+Analyse the uploaded image, compare with similar listings, and provide:
+1. Estimated Current Market Value (USD)
+2. Brief reasoning (2-3 sentences)
+3. Key factors affecting valuation
+
+Format your response as:
+VALUATION: $X,XXX
+REASONING: [your analysis]
+FACTORS: [key factors]
+"""
+    image = Image.open(image_path).convert('RGB')
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[prompt, image],
+    )
+    return response.text
+
+
+def parse_llm_valuation(text):
+    match = re.search(r'VALUATION:\s*\$?([\d,]+)', text)
+    return float(match.group(1).replace(',', '')) if match else None
+
+
+def predict_appreciation(vehicle_info, current_valuation, price_3_years_ago, user_mileage=None):
+    mileage = user_mileage if user_mileage is not None else vehicle_info.get('mileage')
+    input_df = pd.DataFrame([{
+        'model_year':        vehicle_info['model_year'],
+        'model_type':        vehicle_info['model_type'],
+        'mileage':           mileage,
+        'condition':         vehicle_info['condition'],
+        'price_now':         current_valuation,
+        'price_3_years_ago': price_3_years_ago if price_3_years_ago is not None else 0,
+    }])
+    object_cols = appreciation_encoder.feature_names_in_.tolist()
+    for col in object_cols:
+        input_df[col] = input_df[col].astype(str)
+    encoded = pd.DataFrame(appreciation_encoder.transform(input_df[object_cols]))
+    encoded.index = input_df.index
+    X = pd.concat([input_df.drop(object_cols, axis=1), encoded], axis=1)
+    X.columns = X.columns.astype(str)
+    raw = appreciation_model.predict(X)
+    return {
+        'will_appreciate': bool(int(np.round(raw[0])) == 1),
+        'confidence':      round(float(raw[0]), 2),
+    }
+
+
+def full_pipeline(image_path, seller_text='', current_price=None, user_mileage=None):
+    similar      = find_similar_listings(image_path, top_k=10)
+    vehicle_info = extract_vehicle_info(similar)
+    hist_price   = get_historical_price(vehicle_info)
+
+    condition_report = generate_condition_report(image_path, seller_text)
+    llm_valuation    = generate_valuation(image_path, vehicle_info, similar,
+                                           hist_price, current_price,
+                                           user_mileage=user_mileage)
+    current_val = parse_llm_valuation(llm_valuation)
+    if current_val is None:
+        current_val = current_price or float(
+            np.median([l['price_now'] for l in similar[:5]])
+        )
+
+    appreciation = predict_appreciation(vehicle_info, current_val, hist_price,
+                                        user_mileage=user_mileage)
+
+    # Remove nested similar_listings from vehicle_info to keep response clean
+    vehicle_info_clean = {k: v for k, v in vehicle_info.items()
+                          if k != 'similar_listings'}
+
+    return {
+        'vehicle_info':          vehicle_info_clean,
+        'price_3_years_ago':     hist_price,
+        'condition_report':      condition_report,
+        'llm_valuation':         llm_valuation,
+        'current_valuation':     current_val,
+        'appreciation_prediction': appreciation,
+    }
+
+
+# ── Debug logging helper ───────────────────────────────────────────────────────
+import time as _time
+
+_DBG_LOG = os.path.join(ROOT, 'debug-8147b6.log')
+
+def _dbg(msg, data=None, hypothesis=''):
+    entry = json.dumps({'sessionId':'8147b6','timestamp':int(_time.time()*1000),
+                        'location':'app.py','message':msg,'data':data or {},
+                        'hypothesisId':hypothesis})
+    with open(_DBG_LOG, 'a') as _f:
+        _f.write(entry + '\n')
+
+# ── Flask routes ───────────────────────────────────────────────────────────────
+app = Flask(__name__)
+
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/debug-log', methods=['POST'])
+def debug_log():
+    entry = request.get_json(silent=True) or {}
+    with open(_DBG_LOG, 'a') as f:
+        f.write(json.dumps(entry) + '\n')
+    return '', 204
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+_ALLOWED_MIMETYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
+_MAGIC_BYTES = {
+    b'\xff\xd8\xff':      'image/jpeg',
+    b'\x89PNG\r\n\x1a\n': 'image/png',
+    b'RIFF':              'image/webp',  # checked further below
+    b'GIF87a':            'image/gif',
+    b'GIF89a':            'image/gif',
+}
+_MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
+_MAX_TEXT_LEN    = 5_000
+_MAX_PRICE       = 10_000_000
+_MAX_MILEAGE     = 10_000_000
+
+
+def _sniff_mimetype(header: bytes) -> str | None:
+    """Return MIME type from the first 12 bytes, or None if unrecognised."""
+    for magic, mime in _MAGIC_BYTES.items():
+        if header[:len(magic)] == magic:
+            if mime == 'image/webp' and header[8:12] != b'WEBP':
+                return None
+            return mime
+    return None
+
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    if 'image' not in request.files or request.files['image'].filename == '':
+        return jsonify({'error': 'No image provided.'}), 400
+
+    image_file = request.files['image']
+
+    # ── Image validation ──────────────────────────────────────────────────────
+    header = image_file.read(12)
+    image_file.seek(0)
+    detected_mime = _sniff_mimetype(header)
+    if detected_mime not in _ALLOWED_MIMETYPES:
+        return jsonify({'error': 'Unsupported image type. Upload a JPEG, PNG, WebP, or GIF.'}), 415
+
+    image_file.seek(0, 2)
+    file_size = image_file.tell()
+    image_file.seek(0)
+    if file_size > _MAX_IMAGE_BYTES:
+        return jsonify({'error': 'Image exceeds the 20 MB size limit.'}), 413
+
+    # ── Text / numeric field validation ───────────────────────────────────────
+    seller_text = request.form.get('seller_text', '')[:_MAX_TEXT_LEN]
+
+    def _parse_positive_float(raw, max_val):
+        raw = (raw or '').strip()
+        if not raw:
+            return None
+        try:
+            val = float(raw)
+        except ValueError:
+            return False
+        if val < 0 or val > max_val or not (val == val):  # NaN guard
+            return False
+        return val
+
+    asking_price = _parse_positive_float(request.form.get('asking_price'), _MAX_PRICE)
+    user_mileage = _parse_positive_float(request.form.get('mileage'),      _MAX_MILEAGE)
+
+    if asking_price is False:
+        return jsonify({'error': 'Invalid asking price.'}), 400
+    if user_mileage is False:
+        return jsonify({'error': 'Invalid mileage value.'}), 400
+
+    # ── Save to temp file ─────────────────────────────────────────────────────
+    _MIME_TO_EXT = {'image/jpeg': '.jpg', 'image/png': '.png',
+                    'image/webp': '.webp', 'image/gif': '.gif'}
+    suffix = _MIME_TO_EXT[detected_mime]
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    image_file.save(tmp.name)
+    tmp.close()
+
+    @stream_with_context
+    def generate():
+        try:
+            _dbg('yield scanning', hypothesis='H-A')
+            chunk = _sse({'step': 'scanning', 'label': 'Scanning image…', 'progress': 10})
+            _dbg('about to yield scanning chunk', {'chunk': chunk}, hypothesis='H-A')
+            yield chunk
+            _dbg('yielded scanning — now running find_similar_listings', hypothesis='H-A')
+            similar = find_similar_listings(tmp.name, top_k=10)
+
+            _dbg('yield identifying', hypothesis='H-A')
+            yield _sse({'step': 'identifying', 'label': 'Identifying vehicle…', 'progress': 25})
+            vehicle_info = extract_vehicle_info(similar)
+
+            _dbg('yield history', hypothesis='H-A')
+            yield _sse({'step': 'history', 'label': 'Checking market history…', 'progress': 40})
+            hist_price = get_historical_price(vehicle_info)
+
+            _dbg('yield condition', hypothesis='H-A')
+            yield _sse({'step': 'condition', 'label': 'Analysing condition…', 'progress': 55})
+            condition_report = generate_condition_report(tmp.name, seller_text)
+
+            _dbg('yield valuation', hypothesis='H-A')
+            yield _sse({'step': 'valuation', 'label': 'Valuing the car…', 'progress': 75})
+            llm_valuation = generate_valuation(tmp.name, vehicle_info, similar,
+                                               hist_price, asking_price,
+                                               user_mileage=user_mileage)
+            current_val = parse_llm_valuation(llm_valuation)
+            if current_val is None:
+                current_val = asking_price or float(
+                    np.median([l['price_now'] for l in similar[:5]])
+                )
+
+            _dbg('yield predicting', hypothesis='H-A')
+            yield _sse({'step': 'predicting', 'label': 'Predicting appreciation…', 'progress': 90})
+            appreciation = predict_appreciation(vehicle_info, current_val, hist_price,
+                                                user_mileage=user_mileage)
+
+            vehicle_info_clean = {k: v for k, v in vehicle_info.items()
+                                  if k != 'similar_listings'}
+            result = {
+                'vehicle_info':            vehicle_info_clean,
+                'price_3_years_ago':       hist_price,
+                'condition_report':        condition_report,
+                'llm_valuation':           llm_valuation,
+                'current_valuation':       current_val,
+                'appreciation_prediction': appreciation,
+            }
+            _dbg('yield done', hypothesis='H-A')
+            yield _sse({'step': 'done', 'label': 'Done', 'progress': 100, 'result': result})
+            _dbg('generator finished normally', hypothesis='H-A')
+
+        except Exception as e:
+            _dbg('generator exception', {'error': str(e)}, hypothesis='H-A')
+            yield _sse({'step': 'error', 'error': str(e)})
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
+
+
+if __name__ == '__main__':
+    app.run(debug=False, host='0.0.0.0', port=8080, use_reloader=False, threaded=True)
+````
+
+## File: README.md
+````markdown
+# Porsche Appreciation Predictor
+
+An end-to-end multimodal AI system that analyses used Porsche listings — images and seller text — and outputs a condition report, market valuation, and 3-year appreciation prediction.
+
+---
+
+## Project Summary
+
+```
+PROJECT:   Porsche Appreciation Predictor
+
+OBJECTIVE: Build an end-to-end ML web app predicting Porsche value trends
+
+TECHNICAL STACK:
+  Data:       1,234 Porsche listings scraped from Bring a Trailer
+              Features: model type, year, mileage, condition, price (2025 & 2022)
+              Images:   up to 12 photos per listing (~14,800 images total)
+  Embeddings: CLIP (ViT-B/32) for images, all-MiniLM-L6-v2 for text
+  Vector DB:  Qdrant (on-disk) with cosine similarity search
+  ML Model:   Random Forest Classifier (scikit-learn), 78% accuracy
+  LLM:        Gemini (multimodal) for condition reports and valuation reasoning
+  Backend:    Flask, Python
+  Frontend:   HTML / CSS / JavaScript (vanilla, no framework)
+  Deployment: Run locally (see setup below)
+
+KEY RESULTS:
+  - Model achieves 78% accuracy on held-out test set
+  - Identified mileage as the strongest single predictor of depreciation
+  - 911 models show higher appreciation rates (70%) vs. Caymans (45%)
+  - Gemini condition report catches text/photo inconsistencies in real listings
+  - Deployed live web app with <100ms prediction latency (excluding LLM call)
+
+WHAT I LEARNED:
+  - End-to-end ML workflow: data collection → preprocessing → training → deployment
+  - Multimodal AI: combining vision embeddings (CLIP) with LLM reasoning (Gemini)
+  - Vector retrieval: building and querying a Qdrant similarity index
+  - Model evaluation: accuracy, precision, recall, F1, feature importance
+  - Pipeline engineering: chaining CLIP → Qdrant → Gemini → sklearn in one request
+  - Production Flask app: file upload handling, temp files, JSON API
+```
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TD
+    User["User (browser)"]
+
+    subgraph frontend [Frontend]
+        UI["HTML / CSS / JS: Upload + Results"]
+    end
+
+    subgraph backend [Flask Backend — app.py]
+        Route["/analyze POST route"]
+        CLIP["CLIP ViT-B/32: Image encoder"]
+        Qdrant["Qdrant Vector DB: Cosine similarity search"]
+        Gemini["Gemini (multimodal): Condition report + Valuation"]
+        SKLearn["Random Forest: Appreciation classifier"]
+        HistMatcher["Historical Matcher: years_ago.csv lookup"]
+    end
+
+    User -->|"Upload image + seller text"| UI
+    UI -->|"POST /analyze (multipart)"| Route
+    Route --> CLIP
+    CLIP -->|"512-dim image vector"| Qdrant
+    Qdrant -->|"Top-10 similar listings"| Route
+    Route --> HistMatcher
+    HistMatcher -->|"Price 3 years ago"| Route
+    Route --> Gemini
+    Gemini -->|"Condition report JSON\n+ Valuation text"| Route
+    Route --> SKLearn
+    SKLearn -->|"will_appreciate + confidence"| Route
+    Route -->|"SSE stream (progress + result)"| UI
+    UI --> User
+```
+
+---
+
+## Reasoning Flow
+
+How an image and seller text move through the pipeline in a single request:
+
+```
+1. USER UPLOADS IMAGE + (optional) seller description + asking price + (optional) mileage
+        |
+        v
+2. CLIP ENCODING
+   Image → 512-dimensional vector (normalised)
+        |
+        v
+3. QDRANT SIMILARITY SEARCH
+   Query vector → top-10 most visually similar listings from 1,234-listing index
+        |
+        v
+4. VEHICLE IDENTIFICATION  (majority vote on top-5 matches)
+   model_type  → most common among top-5
+   model_year  → median of top-5
+   condition   → most common among top-5
+   mileage     → median of top-5
+        |
+        v
+5. HISTORICAL PRICE LOOKUP
+   HistoricalMatcher queries years_ago.csv (BaT 2020-2022 sold listings)
+   Finds best price match within ±1 year, ±15% mileage, same condition
+        |
+        v
+6. GEMINI CONDITION REPORT  (multimodal)
+   Input:  uploaded image + seller description
+   Output: structured JSON
+           - overall grade + score (1-10)
+           - paint/body issues (location, severity)
+           - aftermarket modifications
+           - missing/damaged trim
+           - text-photo inconsistencies
+           - red flags
+           - recommended restoration steps
+        |
+        v
+7. GEMINI VALUATION  (multimodal)
+   Input:  uploaded image + vehicle info + similar listings + historical price
+   Output: VALUATION: $X,XXX  /  REASONING: ...  /  FACTORS: ...
+        |
+        v
+8. SKLEARN APPRECIATION PREDICTION
+   Features: model_year, model_type, mileage, condition,
+             current_valuation, price_3_years_ago
+   Output:   will_appreciate (bool) + confidence score
+        |
+        v
+9. SSE STREAM → browser updates real-time progress bar, then renders 4 result cards
+```
+
+---
+
+## Why This Project Maps to Porsche AI
+
+| Capability | How it appears in this project |
+|---|---|
+| **Multimodal AI** | CLIP image embeddings + Gemini vision for condition analysis and valuation — images and text are processed jointly |
+| **Retrieval systems** | Qdrant vector DB with cosine similarity search over 1,234 listings; custom historical price matcher over 5,000+ BaT sold records |
+| **Pipeline engineering** | Six-stage chain (CLIP → Qdrant → HistoricalMatcher → Gemini × 2 → sklearn) streamed to the browser in real time via Server-Sent Events |
+| **LLM + vision integration** | Gemini receives raw PIL images alongside structured prompts; outputs both structured JSON (condition) and free-text (valuation) |
+| **ML modelling** | Random Forest trained on scraped real-world data; feature importance analysis identifies mileage as the dominant depreciation signal |
+| **Deployment** | Flask app with environment-variable secret management via \.env\; persistent on-disk Qdrant DB — runs locally on any machine with 4 GB+ RAM |
+| **Monitoring** | Model predictions logged per-request; pipeline step timing visible in server stdout; error states surfaced to the UI |
+| **Data engineering** | Custom Selenium scraper collects listings, images, and seller descriptions from Bring a Trailer; data cleaned and structured into CSVs |
+
+---
+
+## Running Locally
+
+> **This app is not hosted online.** The ML models (CLIP + SentenceTransformer + PyTorch) require ~2–3 GB of RAM at runtime, which makes cloud hosting prohibitively expensive. Run it on your own machine instead — it works great locally.
+
+### System Requirements
+
+- Python 3.10 or 3.11
+- **4 GB RAM minimum** (models load ~800 MB into memory at startup)
+- A free Gemini API key — [get one at Google AI Studio](https://aistudio.google.com/apikey)
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/petpeevephobia/porsche-appreciation-predictor.git
+cd porsche-appreciation-predictor
+```
+
+### 2. Create and activate a virtual environment
+
+```bash
+python -m venv venv
+```
+
+**Windows:**
+```bash
+venv\Scripts\activate
+```
+
+**macOS / Linux:**
+```bash
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+PyTorch must be installed separately first (CPU-only build, ~700 MB):
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+```
+
+> This will take several minutes on first install. Total download is ~1.5 GB.
+
+### 4. Add your Gemini API key
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and set your key:
+
+```
+GEMINI_API_KEY=your_key_here
+```
+
+### 5. Place the data files
+
+The `project/data/` folder is not included in the repo (too large for git). You need:
+
+```
+project/data/
+├── csv/
+│   ├── porsche_data.csv        # 1,234 current listings
+│   └── years_ago.csv           # 5,000+ BaT 2020-2022 sold records
+├── qdrant_db/                  # On-disk Qdrant vector index
+├── porsche_model.pkl           # Trained Random Forest
+└── porsche_encoder.pkl         # Fitted OneHotEncoder
+```
+
+Contact the repo owner to obtain these files.
+
+### 6. Run the app
+
+```bash
+python app.py
+```
+
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080) in your browser.
+
+> **First boot takes 30–90 seconds** while CLIP and SentenceTransformer load into memory. You will see progress printed in the terminal. Subsequent requests are fast once the models are loaded.
+
+---
+
+### Notebooks (optional)
+
+The `project/notebooks/` folder contains the full development history:
+
+| Notebook | Purpose |
+|---|---|
+| `01_eda.ipynb` | Exploratory data analysis |
+| `02_preprocessing_and_training.ipynb` | Feature engineering + Random Forest training |
+| `03_multimodal_preprocessing.ipynb` | CLIP + SentenceTransformer embedding generation, Qdrant indexing |
+| `04_valuation_pipeline.ipynb` | End-to-end pipeline prototype |
+
+---
+
+## Project Structure
+
+```
+porsche-appreciation-predictor/
+├── app.py                          # Flask app + full pipeline
+├── historical_matcher.py           # years_ago.csv price lookup
+├── condition_analyzer.py           # Rule-based condition classifier
+├── config.py                       # Paths and API config
+├── scraper.py                      # Selenium BaT scraper (data collection only)
+├── requirements.txt
+├── .env.example
+├── templates/
+│   └── index.html                  # Single-page UI
+├── static/
+│   └── style.css
+└── project/
+    ├── notebooks/                  # Development notebooks
+    └── data/                       # Not in git — copy manually
+        ├── csv/
+        │   ├── porsche_data.csv    # 1,234 current listings (training only)
+        │   └── years_ago.csv       # 5,000+ BaT 2020-2022 sold records (runtime)
+        ├── qdrant_db/              # On-disk vector index (runtime)
+        ├── porsche_model.pkl       # Trained Random Forest (runtime)
+        └── porsche_encoder.pkl     # Fitted OneHotEncoder (runtime)
+```
+````
+
+## File: project/notebooks/02_preprocessing_and_training.ipynb
+````
+{
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": 83,
+      "id": "fe75a901",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "import pandas as pd\n",
+        "import numpy as np\n",
+        "# To train and test data\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "# To manage categorical features\n",
+        "from sklearn.preprocessing import LabelEncoder\n",
+        "from sklearn.preprocessing import OneHotEncoder\n",
+        "# To define the models\n",
+        "from sklearn.ensemble import RandomForestRegressor\n",
+        "from sklearn.linear_model import LogisticRegression\n",
+        "# To measure model quality\n",
+        "from sklearn.metrics import mean_absolute_error, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay, roc_auc_score, RocCurveDisplay\n",
+        "# Visualise\n",
+        "import matplotlib.pyplot as plt\n",
+        "# Save trained model\n",
+        "import pickle"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 84,
+      "id": "7e24c10d",
+      "metadata": {},
+      "outputs": [
+        {
+          "data": {
+            "text/html": [
+              "<div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>id</th>\n",
+              "      <th>model_year</th>\n",
+              "      <th>model_type</th>\n",
+              "      <th>mileage</th>\n",
+              "      <th>condition</th>\n",
+              "      <th>price_now</th>\n",
+              "      <th>price_3_years_ago</th>\n",
+              "      <th>appreciated</th>\n",
+              "      <th>image_paths</th>\n",
+              "      <th>seller_description</th>\n",
+              "      <th>source</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>0</th>\n",
+              "      <td>p00001</td>\n",
+              "      <td>1987.0</td>\n",
+              "      <td>944</td>\n",
+              "      <td>132000.0</td>\n",
+              "      <td>Fair</td>\n",
+              "      <td>16250.0</td>\n",
+              "      <td>13944</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p00001_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p00001_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/1987-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1</th>\n",
+              "      <td>p00002</td>\n",
+              "      <td>1970.0</td>\n",
+              "      <td>911</td>\n",
+              "      <td>93000.0</td>\n",
+              "      <td>Fair</td>\n",
+              "      <td>84050.0</td>\n",
+              "      <td>76500</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p00002_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p00002_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/1970-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>2</th>\n",
+              "      <td>p00003</td>\n",
+              "      <td>1970.0</td>\n",
+              "      <td>911</td>\n",
+              "      <td>2.0</td>\n",
+              "      <td>Excellent</td>\n",
+              "      <td>500000.0</td>\n",
+              "      <td>73000</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p00003_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p00003_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/1966-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>3</th>\n",
+              "      <td>p00004</td>\n",
+              "      <td>2018.0</td>\n",
+              "      <td>911</td>\n",
+              "      <td>1200.0</td>\n",
+              "      <td>Fair</td>\n",
+              "      <td>435000.0</td>\n",
+              "      <td>322000</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p00004_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p00004_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/2018-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>4</th>\n",
+              "      <td>p00005</td>\n",
+              "      <td>1965.0</td>\n",
+              "      <td>356</td>\n",
+              "      <td>148.0</td>\n",
+              "      <td>Excellent</td>\n",
+              "      <td>755000.0</td>\n",
+              "      <td>4500</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p00005_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p00005_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/1965-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>...</th>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1374</th>\n",
+              "      <td>p01375</td>\n",
+              "      <td>1976.0</td>\n",
+              "      <td>911</td>\n",
+              "      <td>59000.0</td>\n",
+              "      <td>Fair</td>\n",
+              "      <td>76000.0</td>\n",
+              "      <td>35500</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p01375_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p01375_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/1976-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1375</th>\n",
+              "      <td>p01376</td>\n",
+              "      <td>2023.0</td>\n",
+              "      <td>Cayman</td>\n",
+              "      <td>4600.0</td>\n",
+              "      <td>Fair</td>\n",
+              "      <td>186000.0</td>\n",
+              "      <td>130000</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p01376_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p01376_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/2023-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1376</th>\n",
+              "      <td>p01377</td>\n",
+              "      <td>1961.0</td>\n",
+              "      <td>356</td>\n",
+              "      <td>17000.0</td>\n",
+              "      <td>Fair</td>\n",
+              "      <td>148000.0</td>\n",
+              "      <td>81000</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p01377_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p01377_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/1961-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1377</th>\n",
+              "      <td>p01378</td>\n",
+              "      <td>1988.0</td>\n",
+              "      <td>911</td>\n",
+              "      <td>100000.0</td>\n",
+              "      <td>Fair</td>\n",
+              "      <td>80000.0</td>\n",
+              "      <td>44750</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p01378_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p01378_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/1988-porsche...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1378</th>\n",
+              "      <td>p01379</td>\n",
+              "      <td>1958.0</td>\n",
+              "      <td>356</td>\n",
+              "      <td>4300.0</td>\n",
+              "      <td>Excellent</td>\n",
+              "      <td>699356.0</td>\n",
+              "      <td>307500</td>\n",
+              "      <td>yes</td>\n",
+              "      <td>[\"project/data/images/p01379_image_1.jpg\", \"pr...</td>\n",
+              "      <td>project/data/descriptions/p01379_seller_descri...</td>\n",
+              "      <td>https://bringatrailer.com/listing/1958-porsche...</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "<p>1232 rows × 11 columns</p>\n",
+              "</div>"
+            ],
+            "text/plain": [
+              "          id  model_year model_type   mileage  condition  price_now  \\\n",
+              "0     p00001      1987.0        944  132000.0       Fair    16250.0   \n",
+              "1     p00002      1970.0        911   93000.0       Fair    84050.0   \n",
+              "2     p00003      1970.0        911       2.0  Excellent   500000.0   \n",
+              "3     p00004      2018.0        911    1200.0       Fair   435000.0   \n",
+              "4     p00005      1965.0        356     148.0  Excellent   755000.0   \n",
+              "...      ...         ...        ...       ...        ...        ...   \n",
+              "1374  p01375      1976.0        911   59000.0       Fair    76000.0   \n",
+              "1375  p01376      2023.0     Cayman    4600.0       Fair   186000.0   \n",
+              "1376  p01377      1961.0        356   17000.0       Fair   148000.0   \n",
+              "1377  p01378      1988.0        911  100000.0       Fair    80000.0   \n",
+              "1378  p01379      1958.0        356    4300.0  Excellent   699356.0   \n",
+              "\n",
+              "     price_3_years_ago appreciated  \\\n",
+              "0                13944         yes   \n",
+              "1                76500         yes   \n",
+              "2                73000         yes   \n",
+              "3               322000         yes   \n",
+              "4                 4500         yes   \n",
+              "...                ...         ...   \n",
+              "1374             35500         yes   \n",
+              "1375            130000         yes   \n",
+              "1376             81000         yes   \n",
+              "1377             44750         yes   \n",
+              "1378            307500         yes   \n",
+              "\n",
+              "                                            image_paths  \\\n",
+              "0     [\"project/data/images/p00001_image_1.jpg\", \"pr...   \n",
+              "1     [\"project/data/images/p00002_image_1.jpg\", \"pr...   \n",
+              "2     [\"project/data/images/p00003_image_1.jpg\", \"pr...   \n",
+              "3     [\"project/data/images/p00004_image_1.jpg\", \"pr...   \n",
+              "4     [\"project/data/images/p00005_image_1.jpg\", \"pr...   \n",
+              "...                                                 ...   \n",
+              "1374  [\"project/data/images/p01375_image_1.jpg\", \"pr...   \n",
+              "1375  [\"project/data/images/p01376_image_1.jpg\", \"pr...   \n",
+              "1376  [\"project/data/images/p01377_image_1.jpg\", \"pr...   \n",
+              "1377  [\"project/data/images/p01378_image_1.jpg\", \"pr...   \n",
+              "1378  [\"project/data/images/p01379_image_1.jpg\", \"pr...   \n",
+              "\n",
+              "                                     seller_description  \\\n",
+              "0     project/data/descriptions/p00001_seller_descri...   \n",
+              "1     project/data/descriptions/p00002_seller_descri...   \n",
+              "2     project/data/descriptions/p00003_seller_descri...   \n",
+              "3     project/data/descriptions/p00004_seller_descri...   \n",
+              "4     project/data/descriptions/p00005_seller_descri...   \n",
+              "...                                                 ...   \n",
+              "1374  project/data/descriptions/p01375_seller_descri...   \n",
+              "1375  project/data/descriptions/p01376_seller_descri...   \n",
+              "1376  project/data/descriptions/p01377_seller_descri...   \n",
+              "1377  project/data/descriptions/p01378_seller_descri...   \n",
+              "1378  project/data/descriptions/p01379_seller_descri...   \n",
+              "\n",
+              "                                                 source  \n",
+              "0     https://bringatrailer.com/listing/1987-porsche...  \n",
+              "1     https://bringatrailer.com/listing/1970-porsche...  \n",
+              "2     https://bringatrailer.com/listing/1966-porsche...  \n",
+              "3     https://bringatrailer.com/listing/2018-porsche...  \n",
+              "4     https://bringatrailer.com/listing/1965-porsche...  \n",
+              "...                                                 ...  \n",
+              "1374  https://bringatrailer.com/listing/1976-porsche...  \n",
+              "1375  https://bringatrailer.com/listing/2023-porsche...  \n",
+              "1376  https://bringatrailer.com/listing/1961-porsche...  \n",
+              "1377  https://bringatrailer.com/listing/1988-porsche...  \n",
+              "1378  https://bringatrailer.com/listing/1958-porsche...  \n",
+              "\n",
+              "[1232 rows x 11 columns]"
+            ]
+          },
+          "execution_count": 84,
+          "metadata": {},
+          "output_type": "execute_result"
+        }
+      ],
+      "source": [
+        "# Load the data\n",
+        "path = '../data/csv/porsche_data.csv'\n",
+        "df = pd.read_csv(path)\n",
+        "## Drop rows with empty columns\n",
+        "df.dropna(inplace=True)\n",
+        "df"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 85,
+      "id": "dbdfe150",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# Select data X and y\n",
+        "X_list = ['model_year', 'model_type', 'mileage', 'condition', 'price_now', 'price_3_years_ago']\n",
+        "X = df[X_list]\n",
+        "y = df.appreciated\n",
+        "\n",
+        "# Label encode yes/no in col 'appreciated'\n",
+        "le = LabelEncoder()\n",
+        "y = le.fit_transform(y)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 86,
+      "id": "15f3c4ba",
+      "metadata": {},
+      "outputs": [
+        {
+          "data": {
+            "text/html": [
+              "<div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>model_year</th>\n",
+              "      <th>mileage</th>\n",
+              "      <th>price_now</th>\n",
+              "      <th>0</th>\n",
+              "      <th>1</th>\n",
+              "      <th>2</th>\n",
+              "      <th>3</th>\n",
+              "      <th>4</th>\n",
+              "      <th>5</th>\n",
+              "      <th>6</th>\n",
+              "      <th>...</th>\n",
+              "      <th>555</th>\n",
+              "      <th>556</th>\n",
+              "      <th>557</th>\n",
+              "      <th>558</th>\n",
+              "      <th>559</th>\n",
+              "      <th>560</th>\n",
+              "      <th>561</th>\n",
+              "      <th>562</th>\n",
+              "      <th>563</th>\n",
+              "      <th>564</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>0</th>\n",
+              "      <td>1987.0</td>\n",
+              "      <td>132000.0</td>\n",
+              "      <td>16250.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1</th>\n",
+              "      <td>1970.0</td>\n",
+              "      <td>93000.0</td>\n",
+              "      <td>84050.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>2</th>\n",
+              "      <td>1970.0</td>\n",
+              "      <td>2.0</td>\n",
+              "      <td>500000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>3</th>\n",
+              "      <td>2018.0</td>\n",
+              "      <td>1200.0</td>\n",
+              "      <td>435000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>4</th>\n",
+              "      <td>1965.0</td>\n",
+              "      <td>148.0</td>\n",
+              "      <td>755000.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>...</th>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1374</th>\n",
+              "      <td>1976.0</td>\n",
+              "      <td>59000.0</td>\n",
+              "      <td>76000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1375</th>\n",
+              "      <td>2023.0</td>\n",
+              "      <td>4600.0</td>\n",
+              "      <td>186000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1376</th>\n",
+              "      <td>1961.0</td>\n",
+              "      <td>17000.0</td>\n",
+              "      <td>148000.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1377</th>\n",
+              "      <td>1988.0</td>\n",
+              "      <td>100000.0</td>\n",
+              "      <td>80000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1378</th>\n",
+              "      <td>1958.0</td>\n",
+              "      <td>4300.0</td>\n",
+              "      <td>699356.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "<p>1232 rows × 568 columns</p>\n",
+              "</div>"
+            ],
+            "text/plain": [
+              "      model_year   mileage  price_now    0    1    2    3    4    5    6  ...  \\\n",
+              "0         1987.0  132000.0    16250.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "1         1970.0   93000.0    84050.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "2         1970.0       2.0   500000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "3         2018.0    1200.0   435000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "4         1965.0     148.0   755000.0  1.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "...          ...       ...        ...  ...  ...  ...  ...  ...  ...  ...  ...   \n",
+              "1374      1976.0   59000.0    76000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "1375      2023.0    4600.0   186000.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "1376      1961.0   17000.0   148000.0  1.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "1377      1988.0  100000.0    80000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "1378      1958.0    4300.0   699356.0  1.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "\n",
+              "      555  556  557  558  559  560  561  562  563  564  \n",
+              "0     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "1     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "2     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "3     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "4     0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "...   ...  ...  ...  ...  ...  ...  ...  ...  ...  ...  \n",
+              "1374  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "1375  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "1376  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "1377  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "1378  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "\n",
+              "[1232 rows x 568 columns]"
+            ]
+          },
+          "execution_count": 86,
+          "metadata": {},
+          "output_type": "execute_result"
+        }
+      ],
+      "source": [
+        "# Clean the data\n",
+        "## Manage categorical values - One-hot encoding\n",
+        "object_cols = [col for col in X.columns                                 # get all columns that have categorical data\n",
+        "               if X[col].dtype == 'object']\n",
+        "oh = OneHotEncoder(handle_unknown='ignore', sparse_output=False)                     # define encoder\n",
+        "cols_oh = pd.DataFrame(oh.fit_transform(X[object_cols]))                             # add new OH columns to the X df\n",
+        "\n",
+        "## Ensure new X dataframe has the same col names\n",
+        "cols_oh.index = X.index\n",
+        "\n",
+        "## Get numerical columns in X dataframes\n",
+        "num_X = X.drop(object_cols, axis=1)\n",
+        "\n",
+        "## Combine categorical and numerical columns in X dataframes\n",
+        "X_oh = pd.concat([num_X, cols_oh], axis=1)\n",
+        "\n",
+        "## Ensure all column names are strings\n",
+        "X_oh.columns = X_oh.columns.astype(str)\n",
+        "X_oh"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 87,
+      "id": "c54b27fc",
+      "metadata": {},
+      "outputs": [
+        {
+          "data": {
+            "text/html": [
+              "<div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>model_year</th>\n",
+              "      <th>mileage</th>\n",
+              "      <th>price_now</th>\n",
+              "      <th>0</th>\n",
+              "      <th>1</th>\n",
+              "      <th>2</th>\n",
+              "      <th>3</th>\n",
+              "      <th>4</th>\n",
+              "      <th>5</th>\n",
+              "      <th>6</th>\n",
+              "      <th>...</th>\n",
+              "      <th>555</th>\n",
+              "      <th>556</th>\n",
+              "      <th>557</th>\n",
+              "      <th>558</th>\n",
+              "      <th>559</th>\n",
+              "      <th>560</th>\n",
+              "      <th>561</th>\n",
+              "      <th>562</th>\n",
+              "      <th>563</th>\n",
+              "      <th>564</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>365</th>\n",
+              "      <td>2023.0</td>\n",
+              "      <td>17000.0</td>\n",
+              "      <td>148000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>197</th>\n",
+              "      <td>1991.0</td>\n",
+              "      <td>82000.0</td>\n",
+              "      <td>128964.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1337</th>\n",
+              "      <td>2018.0</td>\n",
+              "      <td>174.0</td>\n",
+              "      <td>560000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>722</th>\n",
+              "      <td>1998.0</td>\n",
+              "      <td>59000.0</td>\n",
+              "      <td>146000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>748</th>\n",
+              "      <td>1976.0</td>\n",
+              "      <td>75000.0</td>\n",
+              "      <td>30250.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>...</th>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>854</th>\n",
+              "      <td>1983.0</td>\n",
+              "      <td>75000.0</td>\n",
+              "      <td>68500.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>934</th>\n",
+              "      <td>2024.0</td>\n",
+              "      <td>4700.0</td>\n",
+              "      <td>97000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1363</th>\n",
+              "      <td>2000.0</td>\n",
+              "      <td>36000.0</td>\n",
+              "      <td>47500.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>617</th>\n",
+              "      <td>2003.0</td>\n",
+              "      <td>97000.0</td>\n",
+              "      <td>47000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>767</th>\n",
+              "      <td>2016.0</td>\n",
+              "      <td>5600.0</td>\n",
+              "      <td>97000.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>1.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "      <td>0.0</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "<p>924 rows × 568 columns</p>\n",
+              "</div>"
+            ],
+            "text/plain": [
+              "      model_year  mileage  price_now    0    1    2    3    4    5    6  ...  \\\n",
+              "365       2023.0  17000.0   148000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "197       1991.0  82000.0   128964.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "1337      2018.0    174.0   560000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "722       1998.0  59000.0   146000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "748       1976.0  75000.0    30250.0  0.0  0.0  1.0  0.0  0.0  0.0  0.0  ...   \n",
+              "...          ...      ...        ...  ...  ...  ...  ...  ...  ...  ...  ...   \n",
+              "854       1983.0  75000.0    68500.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "934       2024.0   4700.0    97000.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "1363      2000.0  36000.0    47500.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "617       2003.0  97000.0    47000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "767       2016.0   5600.0    97000.0  0.0  1.0  0.0  0.0  0.0  0.0  0.0  ...   \n",
+              "\n",
+              "      555  556  557  558  559  560  561  562  563  564  \n",
+              "365   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "197   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "1337  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "722   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "748   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "...   ...  ...  ...  ...  ...  ...  ...  ...  ...  ...  \n",
+              "854   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "934   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "1363  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "617   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "767   0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  0.0  \n",
+              "\n",
+              "[924 rows x 568 columns]"
+            ]
+          },
+          "execution_count": 87,
+          "metadata": {},
+          "output_type": "execute_result"
+        }
+      ],
+      "source": [
+        "# Train\n",
+        "train_X, val_X, train_y, val_y = train_test_split(X_oh, y, random_state=0)\n",
+        "train_X"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 88,
+      "id": "e416bd6e",
+      "metadata": {},
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "Random Forest\n",
+            "Max leaf nodes: 5\t\tMAE: 0.2738961038961039\n",
+            "Max leaf nodes: 50\t\tMAE: 0.2716558441558441\n",
+            "Max leaf nodes: 500\t\tMAE: 0.27756493506493507\n",
+            "Max leaf nodes: 5000\t\tMAE: 0.2735714285714285\n",
+            "Max leaf nodes: 50000\t\tMAE: 0.27003246753246757\n",
+            "Max leaf nodes: 500000\t\tMAE: 0.27464285714285713\n"
+          ]
+        }
+      ],
+      "source": [
+        "# Choose best max number of leaf nodes in Random Forest\n",
+        "def get_mae(train_X, val_X, train_y, val_y, model):\n",
+        "    model.fit(train_X, train_y)\n",
+        "    preds = model.predict(val_X)\n",
+        "    mae = mean_absolute_error(val_y, preds)\n",
+        "    return mae\n",
+        "\n",
+        "model1 = RandomForestRegressor()\n",
+        "print('Random Forest')\n",
+        "for max_nodes in [5, 50, 500, 5000, 50000, 500000]:\n",
+        "    nodes_mae1 = get_mae(train_X, val_X, train_y, val_y, model=model1)\n",
+        "    print(f'Max leaf nodes: {max_nodes}\\t\\tMAE: {nodes_mae1}')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 89,
+      "id": "48336b31",
+      "metadata": {},
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "Random Forest accuracy: 43.92%\n"
+          ]
+        }
+      ],
+      "source": [
+        "# Random Forest: Define and fit the model\n",
+        "model1 = RandomForestRegressor(max_leaf_nodes=5000)\n",
+        "model1.fit(train_X, train_y)\n",
+        "\n",
+        "# Inference\n",
+        "preds1 = model1.predict(val_X)\n",
+        "\n",
+        "print(f'Random Forest accuracy: {round(model1.score(val_X, val_y)*100, 2)}%')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 90,
+      "id": "589422fb",
+      "metadata": {},
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "Logistic Regression accuracy: 61.69%\n"
+          ]
+        }
+      ],
+      "source": [
+        "# Logistic Regression: Define and fit the model\n",
+        "model2 = LogisticRegression(max_iter=10000)\n",
+        "model2.fit(train_X, train_y)\n",
+        "\n",
+        "# Inference\n",
+        "preds2 = model2.predict(val_X)\n",
+        "\n",
+        "print(f'Logistic Regression accuracy: {round(model2.score(val_X, val_y)*100, 2)}%')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 91,
+      "id": "03f7f2da",
+      "metadata": {},
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "\n",
+            "Random Forest            \n",
+            "\tAccuracy: 79.0%            \n",
+            "\tPrecision: 76.0%            \n",
+            "\tRecall: 82.0%            \n",
+            "\tF1-score: 79.0%\n",
+            "\n",
+            "Logistic Regression            \n",
+            "\tAccuracy: 62.0%            \n",
+            "\tPrecision: 59.0%            \n",
+            "\tRecall: 71.0%            \n",
+            "\tF1-score: 64.0%\n",
+            "\n",
+            "The best model is using the Random Forest Regressor.\n"
+          ]
+        }
+      ],
+      "source": [
+        "# Evaluate model1 and model2\n",
+        "for name, model in [('Random Forest', model1), ('Logistic Regression', model2)]:\n",
+        "    pred_y = model.predict(val_X)\n",
+        "    # Convert inference/prediction made by Random Forest model to readable output\n",
+        "    if model == model1:\n",
+        "        pred_y = np.round(pred_y).astype(int)\n",
+        "\n",
+        "    print(f'\\n{name}\\\n",
+        "            \\n\\tAccuracy: {round(accuracy_score(val_y, pred_y), 2)*100}%\\\n",
+        "            \\n\\tPrecision: {round(precision_score(val_y, pred_y), 2)*100}%\\\n",
+        "            \\n\\tRecall: {round(recall_score(val_y, pred_y), 2)*100}%\\\n",
+        "            \\n\\tF1-score: {round(f1_score(val_y, pred_y), 2)*100}%')\n",
+        "\n",
+        "print('\\nThe best model is using the Random Forest Regressor.')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 92,
+      "id": "4a2c5310",
+      "metadata": {},
+      "outputs": [
+        {
+          "data": {
+            "image/png": "iVBORw0KGgoAAAANSUhEUgAAAggAAAHHCAYAAADaqqCfAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAAPYQAAD2EBqD+naQAAQahJREFUeJzt3Ql8U1X2wPGTUmjL0rKMZZFVRXYBQRnEQVYRHARRGRh0UBA3UFEQZZRVBBFXQBERcfmDuICMMiOKiIKKCAgMCrLvu0IpFFva5v0/5zIJSdNX2yYhSfP7+nm2eclLbl9C3nnnnnufw7IsSwAAADzEeN4AAAAgQAAAALkigwAAAHwQIAAAAB8ECAAAwAcBAgAA8EGAAAAAfBAgAAAAHwQIAADABwECguL222+XmjVrsnejyKlTp+TOO++USpUqicPhkMGDBwf8NfQzpZ8tnDV69Gizr4FgIECIcG+++ab5gnAtsbGxcuGFF5ov0f3794e6eWG7nzyXxx57TMLR+PHjZcGCBQXaJjU1VcaMGSONGzeW0qVLS0JCgjRs2FAeffRROXDggAS7vbqf7733XnnnnXfktttuk6L4+fnmm2987tcZ66tVq2bu/+tf/3re3m8gmGKD+uw4b8aOHSu1atWS9PR0+f77780Xmn6R/fTTTxIfH887kWM/edIDaDjSA8bNN98s3bt3z9fjd+zYIR06dJA9e/bILbfcInfddZeUKFFC/vvf/8rMmTPlo48+ki1btgStvV9++aX8+c9/llGjRgXtNTZv3iwxMaE7r9F/S3PmzJGrr77aa/3XX38t+/btk7i4uPP2fqsnnngibANcRD4ChCKic+fO0rx5c/O7pnn/9Kc/ycSJE+Xjjz+Wnj17hrp5YbmfAiktLU1KlSoloZKVlSU9evSQw4cPy1dffeVzAHvqqafM5yGYjhw5IvXr1w/qa/hzAA6ELl26yAcffCCTJ0822ToXDRqaNWsmv/7663lph+vzpm3wbAcQSHQxFFF/+ctfzM/t27e71505c0ZGjhxpvsiSkpLMF4w+bunSpV7b7tq1y6RKn332WXnttdfk4osvNl/MV1xxhaxatcrntTQtqmfhenalP/VM1e5LbciQISYVq89Xp04d8xo5Lyiqrz1o0CDzRawHHE2Tt2zZUjZs2GDunz59ulxyySXm9dq0aWPaG8izYN0num/Kli0r3bp1k02bNuXa77tx40b5+9//LuXKlfM6IP/f//2f2cfa7vLly0uvXr1k7969Xs+xdetWuemmm0x/vf4dVatWNY87ceKEex/o/nrrrbfcqe28+t7nzZsn69evl8cff9wnOFCJiYkmSPCk+9fVTg0ob731Vp9uKX1N7arQ9Xpmq79fcMEFMnToUMnOzjaP0YBE27dz507597//7W6vvi+u1HzO98i1jf7M7z6xq0HQzIlmTHRflyxZ0mQxtB25vd77779v9oM+t75G+/btZdu2bZJfvXv3lt9++00WL17s9e/qww8/NJ+F3Ohn/KqrrpIKFSqYfa37XB/vKa/3O6/PW84ahFmzZpnbb7zxhk92Qtf/5z//yfffChB6FlGuL2T9MvHsn3799dfNl9yAAQPk5MmTJvXcqVMn+eGHH6RJkyZez6FnRfqYu+++23y5PPPMM+YsVb+Qixcvbh7z+eefmy91PZBPmDDBfHnecccd5gvYkwYBN9xwgwlG+vfvb17rs88+k0ceecQcfF544QWvxy9fvtxkPwYOHGhu63Nr3+6wYcPklVdekfvuu0+OHz9u2tSvXz9zYM8PPdjkPMvTg6P64osvTIbhoosuMl+8v//+u0yZMkVatWolP/74o0/RpR6Uateubb58XUGOHnxGjBhhsjaayTl69Kh5jtatW8vatWtN0KEHFN3nGRkZcv/995sDou6DhQsXSkpKignetA9ft7/yyitNV4HSQM2O7iuV335/PXDr+6RBn+5bzTy89NJL8u2337rb6aKBgLa3RYsW5mCn++m5554z7dF6g3r16pn2PvTQQ+Z91yBQaSCRX/nZJ7nRduvB9/Tp0/LAAw+Yg7AeZPWzpgfhG2+80evxTz/9tOmi0ABHPwv6+enTp4+sXLkyX+3Uz4AGq++++675rKhPP/3UPJcGM5pZyEn3q7ZHX0f/zrlz55rPjv5t119/vXlMft7v3D5vOel7On/+fHn44YelY8eOJhjXwFrrUvTfnWZAgHyzENFmzZql3xTWF198YR09etTau3ev9eGHH1oXXHCBFRcXZ267ZGVlWRkZGV7bHz9+3KpYsaLVr18/97qdO3ea56xQoYJ17Ngx9/p//etfZv0nn3ziXtekSROrcuXKVkpKinvd559/bh5Xo0YN97oFCxaYdePGjfN6/ZtvvtlyOBzWtm3b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AQIAAPBBgACEgE4OpRf9cWnTpo2ZaOd808sQ65TAeiVOO3q/XpUzv/Qy3jrNtj/0Koj6unp9AwChQYAAeBy09aCkS4kSJeSSSy4xMz1mZWUFfR/pVLw6BXWgDuoA4C8u1gR4uO6662TWrFmSkZEh//nPf8yc+8WLF8/1ypRnzpwxgUQglC9fnvcBQFghgwB4iIuLk0qVKpkr7917773SoUMH+fjjj726BZ566ikzF7/rSpV79+6Vnj17mnn49UDfrVs3kyJ30fn69Qp+en+FChVk2LBhYlmW137P2cWgAcqjjz4q1apVM23SbMbMmTPN87Zt29Y8ply5ciaT4LqWhV73YsKECVKrVi1JSEiQxo0by4cffuj1Ohr06LUB9H59Hs925pe2S5+jZMmSctFFF8mIESMkMzPT53HTp0837dfH6f45ceKE1/2vv/66uXhRfHy81K1bV1555RU+i0AYIUAA8qAHUs0UuOjVKDdv3iyLFy+WhQsXmgNjp06dpEyZMrJ8+XJzAZ/SpUubTIRrO71Iz5tvvilvvPGGfPPNN+YqgHrZ37z84x//kHfffddcDXPTpk3mYKvPqwdcvcyw0nYcPHhQXnrpJXNbg4O3335bXn31Vfn555/loYcekltvvVW+/vprdyDTo0cP6dq1q+nbv/POO+Wxxx4r8Puvf6v+PRs3bjSvPWPGDHnhhRe8HrNt2zZzYa5PPvlEFi1aJGvXrpX77rvPff/s2bPNxbo02NK/T698qIGGXuETQJiwABh9+/a1unXrZn53Op3W4sWLrbi4OGvo0KHu+ytWrGhlZGS499g777xj1alTxzzeRe9PSEiwPvvsM3O7cuXK1jPPPOO+PzMz06patar7tdQ111xjPfjgg+b3zZs3a3rBvH5uli5dau4/fvy4e116erpVsmRJ67vvvvN6bP/+/a3evXub34cPH27Vr1/f6/5HH33U57ly0vs/+ugj2/snTZpkNWvWzH171KhRVrFixax9+/a513366adWTEyMdfDgQXP74osvtubMmeP1PE8++aTVsmVL8/vOnTvN665du9b2dQEEFzUIgAfNCuiZumYGNGX/97//3VTlu+hlfT3rDtavX2/OlvWs2lN6erps377dpNX1LL9Fixbu+2JjY6V58+Y+3QwuenZfrFgxueaaa/L93mgbTp8+LR07dvRar1mMpk2bmt/1TN2zHaply5YFfv/fe+89k9nQv+/UqVOmiFMvb+ypevXqcuGFF3q9ju5PzXrovtJt+/fvLwMGDHA/Rp8nKSmpwO0BEBwECIAH7ZefNm2aCQK0zkAP5p5KlSrldVsPkM2aNTMp85wuuOCCQndrFJS2Q/373//2OjArrWEIlBUrVkifPn1kzJgxpmtFD+hz58413SgFbat2TeQMWDQwAhAeCBCAHAGAFgTm1+WXX27OqJOTk33Ool0qV64sK1eulNatW7vPlNesWWO2zY1mKfRsW2sHtEgyJ1cGQ4sfXerXr28CgT179thmHrQg0FVw6fL9999LQXz33XemgPPxxx93r9u9e7fP47QdBw4cMEGW63ViYmJMYWfFihXN+h07dphgA0B4okgR8IMe4P70pz+ZkQtapLhz504zT8EDDzwg+/btM4958MEH5emnnzaTDf3yyy+mWC+vOQxq1qwpffv2lX79+pltXM+pRX9KD9A6ekG7Q44ePWrOyDVtP3ToUFOYqIV+msL/8ccfZcqUKe7Cv3vuuUe2bt0qjzzyiEn1z5kzxxQbFkTt2rXNwV+zBvoa2tWQW8GljkzQv0G7YHS/6P7QkQw6QkRpBkKLKnX7LVu2yIYNG8zw0ueff75A7QEQPAQIgB90CN+yZctMn7uOENCzdO1b1xoEV0ZhyJAhctttt5kDpvbF68H8xhtvzPN5tZvj5ptvNsGEDgHUvvq0tDRzn3Yh6AFWRyDo2figQYPMep1oSUcC6IFX26EjKbTLQYc9Km2jjoDQoEOHQOpoBx09UBA33HCDCUL0NXW2RM0o6GvmpFkY3R9dunSRa6+9Vi677DKvYYw6gkKHOWpQoBkTzXposOJqK4DQc2ilYqgbAQAAwgsZBAAA4IMAAQAA+CBAAAAAPggQAACADwIEAADggwABAAD4IEAAAAA+CBAAAIAPAgQAAOCDAAEAAPggQAAAAD4IEAAAgOT0/91vqRgJ28PSAAAAAElFTkSuQmCC",
+            "text/plain": [
+              "<Figure size 640x480 with 2 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        },
+        {
+          "data": {
+            "text/plain": [
+              "<Figure size 640x480 with 0 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        }
+      ],
+      "source": [
+        "# Random Forest: Confusion matrix\n",
+        "pred_y_rf = np.round(model1.predict(val_X)).astype(int)\n",
+        "cm = confusion_matrix(val_y, pred_y_rf)\n",
+        "disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['No','Yes'])\n",
+        "disp.plot()\n",
+        "plt.title('Random Forest Confusion Matrix')\n",
+        "plt.show()\n",
+        "plt.savefig('../../graphs/random_forest_confusion_matrix.png')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 93,
+      "id": "17513db9",
+      "metadata": {},
+      "outputs": [
+        {
+          "data": {
+            "image/png": "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",
+            "text/plain": [
+              "<Figure size 640x480 with 2 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        },
+        {
+          "data": {
+            "text/plain": [
+              "<Figure size 640x480 with 0 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        }
+      ],
+      "source": [
+        "# Linear Regression: Confusion matrix\n",
+        "pred_y_rf = np.round(model2.predict(val_X)).astype(int)\n",
+        "cm = confusion_matrix(val_y, pred_y_rf)\n",
+        "disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['No','Yes'])\n",
+        "disp.plot()\n",
+        "plt.title('Linear Regression Confusion Matrix')\n",
+        "plt.show()\n",
+        "plt.savefig('../../graphs/linear_regression_confusion_matrix.png')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 94,
+      "id": "efad3942",
+      "metadata": {},
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "Random Forest ROC-AUC: 0.884\n"
+          ]
+        },
+        {
+          "data": {
+            "image/png": "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W/3eRETkvqyuAX7zzTcWt48aNUr1B1oDgfPAgQMyePBgwzYPDw/VrLl79+5EvQYScaKioiRDhgxWvTcREbk3m43+xtyg8dXa4nP79m2JiYmRzJkzm2zH7Rs3biTqNQYOHCjBwcEqaFqCqdoePnxociEiIrJZAESNDX1yL9P48eNl8eLFsnLlynjf+/PPP1ez1OiXHDlyvNQyEhGRizSBvv322ya3NU2T69evy/79+2X48OFWvVZgYKB4enpKaGioyXbcxowzCfnqq69UANy0aZOULFky3seheRVJNjrUABkEiYjI6gCIWpQx9NkVKlRIPv30U5WNae1QinLlyqkEljfffFNt0xNaevToEe/zvvzySxk7dqysX79eypcvn+B7YJA+LkREREkOgOivQ7Ymsj0xBs8WUDtr3769CmQYU4hhEI8fP1bvA+3atVPDG9CUCRj2MGLECFm4cKEaO6j3FWIsIgfjExGRXQIgmitRyzt58qTNAmCLFi3k1q1bKqghmGF4w7p16wyJMSEhIaqWqZs+fbrKHm3evLnJ64wcOVJlohIREdmlCbR48eJy/vx5yZMnj9gKmjvja/LEwHdjFy9etNn7EhGR+0rSgriY+Hr16tUq+YVDDIiIyKVrgEhy+eSTT6RRo0bq9uuvv24yJRqyQXEb/YREREQuEwBHjx4t3bp1k61bt9q3RERERM4UAFHDg1q1atmzPERERM7XB5jQKhBEREQumwVasGDB5wbBu3fvvmiZiIiInCsAoh/QfCYYIiIilw+ALVu2tLhILRERkcv2AbL/j4iI3DIA6lmgREREbtUEilUaiIiIXIXNFsQlIiJKThgAiYjILTEAEhGRW2IAJCIit8QASEREbokBkIiI3BIDIBERuSUGQCIicksMgERE5JYYAImIyC0xABIRkVtiACQiIrfEAEhERG6JAZCIiNwSAyAREbklBkAiInJLDIBEROSWGACJiMgtMQASEZFbYgAkIiK3xABIRERuiQGQiIjcEgMgERG5JQZAIiJySwyARETklhgAiYjILXk5ugBEriwmJkaioqIcXQyiZMXT01O8vLwkRYoUdn0fBkAiOwkLC5MrV66Ipmncx0RWSpUqlWTNmlV8fHzEXhgAiexU80Pwwx9xpkyZ7H4mS+QqNE2TyMhIuXXrlly4cEEKFCggHh726a1jACSyAzR74g8Z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",
+            "text/plain": [
+              "<Figure size 640x480 with 1 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        },
+        {
+          "data": {
+            "text/plain": [
+              "<Figure size 640x480 with 0 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        }
+      ],
+      "source": [
+        "# Random Forest ROC-AUC\n",
+        "raw_scores = model1.predict(val_X)      # produces float between 0.0 and 1.0\n",
+        "auc = roc_auc_score(val_y, raw_scores)\n",
+        "print(f'Random Forest ROC-AUC: {auc:.3f}')\n",
+        "\n",
+        "RocCurveDisplay.from_predictions(val_y, raw_scores)\n",
+        "plt.title('ROC curve - Random Forest')\n",
+        "plt.show()\n",
+        "plt.savefig('../../graphs/random_forest_roc.png')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 95,
+      "id": "23edf6d1",
+      "metadata": {},
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "Linear Regression ROC-AUC: 0.619\n"
+          ]
+        },
+        {
+          "data": {
+            "image/png": "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",
+            "text/plain": [
+              "<Figure size 640x480 with 1 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        },
+        {
+          "data": {
+            "text/plain": [
+              "<Figure size 640x480 with 0 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        }
+      ],
+      "source": [
+        "# Linear Regression ROC-AUC\n",
+        "raw_scores = model2.predict(val_X)      # produces float between 0.0 and 1.0\n",
+        "auc = roc_auc_score(val_y, raw_scores)\n",
+        "print(f'Linear Regression ROC-AUC: {auc:.3f}')\n",
+        "\n",
+        "RocCurveDisplay.from_predictions(val_y, raw_scores)\n",
+        "plt.title('ROC curve - Linear Regression')\n",
+        "plt.show()\n",
+        "plt.savefig('../../graphs/linear_regression_roc.png')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 96,
+      "id": "ba8ced0c",
+      "metadata": {},
+      "outputs": [
+        {
+          "name": "stdout",
+          "output_type": "stream",
+          "text": [
+            "0    0.512987\n",
+            "1    0.487013\n",
+            "Name: proportion, dtype: float64\n"
+          ]
+        }
+      ],
+      "source": [
+        "# check class balance\n",
+        "print(pd.Series(val_y).value_counts(normalize=True))"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 99,
+      "id": "5e52a51e",
+      "metadata": {},
+      "outputs": [
+        {
+          "data": {
+            "image/png": "iVBORw0KGgoAAAANSUhEUgAAAxYAAAHqCAYAAACZcdjsAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjgsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvwVt1zgAAAAlwSFlzAAAPYQAAD2EBqD+naQAARCpJREFUeJzt3Qm4TfX+x/EvDsd4jGXIWIZcoQghUYTCbR5dQ8RNEaXJLVOEQpHSoEKlXMWt20Cl0i1XKZWQhLhUJMpcxvV/Pr//s/az93GOc47fmc/79Tzbsddee+017b1/n/Ubdr4gCAIDAAAAAA/5fZ4MAAAAAAQLAAAAAOmCGgsAAAAA3ggWAAAAALwRLAAAAAB4I1gAAAAA8EawAAAAAOCNYAEAAADAG8ECAAAAgDeCBQDkcocPH7a77rrLqlSpYvnz57dLL700q1cpWxkxYoTly5fPtm/fntWrkits3LjR7c8ZM2ak63KrV69uPXv2tLwo8bYvWrTI7WP9BbITggWQBfSFqy+FpG733HNPhrzmf//7X1eA2rlzp2XX/fHFF19YTjV16tR0L0gl56WXXrJJkyalev7nnnvOxo8fb1deeaXNnDnTbrvttgxdvzZt2sSc02XKlLEmTZq49Th69GiGvnZOOl+0b5o1a5bVq5KtZMfPqcSf14ULF7batWtb//797ZdffrGc5O2333b7F8gocRm2ZAApuv/++61GjRox084444wM+8IeOXKku+pVqlQpjk4GFBTLlSuXKVdUFSxWrlxpgwYNStX8H3zwgZ1yyin2yCOPWGapXLmyjR071v3/119/teeff9569+5t33//vY0bN87yulmzZrmr0EuXLrV169ZZzZo1LbeoVq2a/fHHH1awYMF0/Zxas2aNq3HL6s/rP//80z755BN74oknXEFd78WiRYtm6rqcd955bh8XKlQoTc/T+j7++OOEC2QYggWQhS666CI7++yzc/Qx2LdvnxUrVszyqv3792d6oSKttm3blq5hUrUOBw8edFduk1OyZEn729/+Frn/97//3erUqWOPPfaYjRo16oQKnSEV7FSgyspCpo8NGza4AvS8efPcflHIGD58eJY1k9PxTGsB9XjCq/rpLT4+3rLL5/WNN95oZcuWtYcffthef/11u+666zL181Hnfkbs44z6PEDekTM/lYE8Yv78+daqVSv3xVSiRAnr1KmTrVq1Kmaeb775xl3dO/XUU90He4UKFaxXr162Y8eOyDyq+r7zzjvd/3XFLazSV1vo47WH1vToavOwLfq3335r119/vZUuXdrOPffcyOMvvviiNW7c2IoUKeKav1x77bW2efPmE9p2bVPx4sVt06ZN1rlzZ/d/XXXX1TZZsWKFXXDBBW7f6AqpruIn1XzhP//5jyu8qRCQkJBg3bt3t99//z3JGod69eq5wkulSpXslltuOaY5hpr4qEZp2bJl7oqhAsU//vEPd+VZx+Wjjz6K7FvNK7/99pvdcccdVr9+fbcNWgcVUJYvXx6z7LDN9Jw5c+yBBx5wV/x1PNu2beuuaEevw1tvvWX/+9//Iq+l109KeGw//PBDt37h/GG7bBV6Bg8e7PpeaLtV8J8wYYIFQRCzHD1HzT5UAA730YIFC9J0PLWvzjnnHPeaqsGQH374wa666ip3roSPa9uS2i+zZ8+2++67z50Dmnf37t126NAhd3W7Vq1abl/pGOt8fO+992KW8d1339nVV19tJ510kjs3tZ333nvvMeuo4x1eKVcwuuGGG1xwTMz3PNd+1HtH72c1T9P95I6djodqmnSO6/Vat27trpAn9V7R/uzQoYN7T+gc1hX26GMZvUw1pTvttNPcsdT7OdxPWh9tk/anCtH//ve/k9xPak6n807P17mq91XYRyWpzxTfz6nk+lik5RxK6b2VVvr8CYNi9HFYv369XXzxxe4zu2vXrpHCt/a53j967fLly7vPpcSfRTpeo0ePduuo7Tn//POP+cw/Xh+Lzz77zL22zi+dBw0aNLDJkydH1i/8/Ixu2hXKzM8D5F7UWABZaNeuXcd0GFVzGnnhhResR48erqDw4IMPugKOqt5VcPrqq68ihUkVovTlqkKQvqz1JfT000+7v59++qn7Erj88stdE5SXX37ZFVLC11BBKyzkpYW+yFWYGzNmTORLR1/YQ4cOdQU4Xc3TcqdMmeIK4FrfE7lifuTIEVcI1zIeeugh90WmLzR9YapgqC9tbduTTz7pCjbNmzc/pmmZ5tdrq9CiphTahyqUh1/MosdUQG3Xrp3169cvMt/nn39uixcvjrm6roKQ1kmFSV2RVwFBhf0BAwa4QkVYYNV00bF57bXX3D7TuqlN9lNPPeUKiCrQqQAYTc2EdDVSYUTnh7Zb26kCg2j5mv7jjz9GmjbpdZOi46vzSMdm7969kaZJdevWdcftr3/9qwsdaqJ05pln2jvvvOMKdj/99NMxzabUnEoFM+1PnT/JhZnj0b4oUKCAOx7aDy1atHDn9a233upCgfp/aJ1effVVu+yyy2Keq1oOXVXXfjlw4ID7v46btknnW9OmTV3YUD+dL7/80i688MJIgVbhXMewb9++br1V8HvjjTfcfommc1fHSMvUMp555hk7+eST3fsvlB7nuc5jnbfaBl3pDs819UNJTE3I9uzZ44KuampUSFSBVsE6PMfC90rHjh1dwVrnjAp6qgVRjYQCRrTp06e7ZWl/qFCoQrk+L1q2bOmCm/p56T2m462O/nPnzo0cD51H2p+rV692waBRo0buM0wBROdk+NmSmO/nVFLSeg6l9N5KK51HotcNaX/rM1uf0yqUh7WZChEKWtp+ravCiGrvdM5Ef8YMGzbMBQuFA910HrZv397VCKRE+1gXYSpWrGgDBw50+1nH6c0333T3tQ4///yzm0+fC9Gy4vMAuVQAINNNnz5dpfEkb7Jnz56gVKlSQZ8+fWKet3Xr1qBkyZIx0/fv33/M8l9++WW3rP/85z+RaePHj3fTNmzYEDOv7mu61ikxTR8+fHjkvv6vadddd13MfBs3bgwKFCgQPPDAAzHTV6xYEcTFxR0zPbn98fnnn0em9ejRw00bM2ZMZNrvv/8eFClSJMiXL18we/bsyPTvvvvumHUNl9m4cePg4MGDkekPPfSQm/7666+7+9u2bQsKFSoUtG/fPjhy5Ehkvscee8zN99xzz0WmtW7d2k178sknj9mGevXquccT+/PPP2OWG+7z+Pj44P77749M+/DDD92y69atGxw4cCAyffLkyW669mWoU6dOQbVq1YLU0npp/aK99tprbrmjR4+OmX7llVe6/btu3brINM2XP3/+YNWqVal+vdNPPz349ddf3W316tXBrbfe6pbTpUsXN8+gQYPc/Y8//jjyPJ33NWrUCKpXrx7ZZ+F+OfXUU4851xs2bOj2xfGcd955QYkSJYL//e9/MdOPHj16zHndq1evmHkuu+yyoGzZsul2nssXX3zhXuu9996LrEflypWDgQMHJvm+1Pn+448/RqZ/9tlnbvptt912zHtlwIABMdunfaNzW8cgepkJCQnuvI/Wtm3boH79+u58jV5GixYtglq1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AMAbwQIA4KVnz5526aWXZsu9uHHjRsuXL599/fXXWb0qAJDrESwAALnSwYMHs3oVACBPIVgAANJNmzZtbMCAATZo0CArXbq0lS9f3qZNm2b79u2zG264wUqUKGE1a9a0+fPnR56zaNEiV6vw1ltvWYMGDaxw4cJ2zjnn2MqVK2OWPXfuXKtXr57Fx8db9erVbeLEiTGPa9qoUaOse/fulpCQYH379rUaNWq4x8466yz3Glo/+fzzz+3CCy+0cuXKWcmSJa1169b25ZdfxixP8z/zzDN22WWXWdGiRa1WrVr273//O2aeVatWWefOnd3radtatWpl69evjzyu59etW9dt0+mnn25Tp07lbAOQaxEsAADpaubMma7AvnTpUhcy+vXrZ1dddZW1aNHCFd7bt29v3bp1s/3798c8784773RhQYX+k046ybp06WKHDh1yjy1btsyuvvpqu/baa23FihU2YsQIGzp0qM2YMSNmGRMmTLCGDRvaV1995R7XOsjChQtty5YtNm/ePHd/z5491qNHD/vkk0/s008/daHh4osvdtOjjRw50r3uN9984x7v2rWr/fbbb+6xn376yc477zwXdD744AO3jr169bLDhw+7x2fNmmXDhg2zBx54wFavXm1jxoxx66T9AwC5UgAAgIcePXoEl1xyift/69atg3PPPTfy2OHDh4NixYoF3bp1i0zbsmVLoK+fJUuWuPsffvihuz979uzIPDt27AiKFCkS/POf/3T3r7/++uDCCy+Med0777wz+Mtf/hK5X61ateDSSy+NmWfDhg1u2V999dVxt+HIkSNBiRIlgjfeeCMyTc+77777Ivf37t3rps2fP9/dHzJkSFCjRo3g4MGDSS7ztNNOC1566aWYaaNGjQqaN29+3HUBgJyKGgsAQLpSc6ZQgQIFrGzZsla/fv3INDWPkm3btsU8r3nz5pH/lylTxurUqeOu9Iv+tmzZMmZ+3V+7dq0dOXIkMu3ss89O1Tr+8ssv1qdPH1dToaZQasq0d+9e27RpU7LbUqxYMTdfuN7qEK6mTwULFjxm+Wr6pSZRvXv3tuLFi0duo0ePjmkqBQC5SVxWrwAAIHdJXNBWX4XoabovR48eTffXVuE/NdQMaseOHTZ58mSrVq2aa86kYJO4w3dS2xKud5EiRZJdvkKKqH9Js2bNYh5T2AKA3IhgAQDIFtTXoWrVqu7/v//+u33//feu47Po7+LFi2Pm1/3atWsft6BeqFAh9ze6ViN8rjpSq9+EbN682bZv356m9VVthvpLqB9I4gCiWplKlSrZDz/84PplAEBeQLAAAGQL999/v2s2pUL5vffe6zqAh7+PMXjwYGvSpIkb9emaa66xJUuW2GOPPZbiKEsnn3yyq1lYsGCBVa5c2Y3OpKZPagL1wgsvuKZTu3fvdh3Hj1cDkZT+/fvblClTXIfyIUOGuOUqHDVt2tQ141LH71tvvdVN79ixox04cMC++OILF5puv/12r30FANkRfSwAANnCuHHjbODAgda4cWPbunWrvfHGG5Eah0aNGtmcOXNs9uzZdsYZZ7jRlhRE9ON8xxMXF2ePPvqoPfXUU64G4ZJLLnHTn332WVfA13I1QpUCgEJIWigEaTQoNXvScLVabzV9CmsvbrzxRjfc7PTp010fE82jUazCIXABILfJpx7cWb0SAIC8S79jcf7557uCfqlSpbJ6dQAAJ4gaCwAAAADeCBYAAAAAvNEUCgAAAIA3aiwAAAAAeCNYAAAAAPBGsAAAAADgjWABAAAAwBvBAgAAAIA3ggUAAAAAbwQLAAAAAN4IFgAAAAC8ESwAAAAAmK//AxIOS8smw98aAAAAAElFTkSuQmCC",
+            "text/plain": [
+              "<Figure size 800x500 with 1 Axes>"
+            ]
+          },
+          "metadata": {},
+          "output_type": "display_data"
+        }
+      ],
+      "source": [
+        "# Random Forest: Feature importance\n",
+        "importances = model1.feature_importances_\n",
+        "feature_names = train_X.columns.tolist()\n",
+        "\n",
+        "# Get feature names from OH to identify which OH columns belong to which features\n",
+        "oh_feature_names = oh.get_feature_names_out(object_cols)\n",
+        "\n",
+        "# Only show three features\n",
+        "desired_features = ['price_now', 'mileage', 'model_year', 'model_type']\n",
+        "filtered_importances = []\n",
+        "filtered_names = []\n",
+        "\n",
+        "# Add numerical features\n",
+        "for feature in desired_features:\n",
+        "    if feature in feature_names:\n",
+        "        idx = feature_names.index(feature)\n",
+        "        filtered_importances.append(importances[idx])\n",
+        "        filtered_names.append(feature)\n",
+        "\n",
+        "# Aggregate model_type and condition from their OH columns (num strings)\n",
+        "model_type_importance = 0\n",
+        "condition_importance = 0\n",
+        "\n",
+        "# Better approach: Get indices of all OH columns in feature_names\n",
+        "for i, name in enumerate(feature_names):\n",
+        "    # Check if i is a OH column\n",
+        "    if str(name).isdigit():\n",
+        "        # Which feature does this OH belong to?\n",
+        "        oh_idx = int(name)\n",
+        "        if oh_idx < len(oh_feature_names):\n",
+        "            oh_feature_name = oh_feature_names[oh_idx]\n",
+        "            if oh_feature_name.startswith('model_type'):\n",
+        "                model_type_importance += importances[i]\n",
+        "            elif oh_feature_name.startswith('condition'):\n",
+        "                condition_importance += importances[i]\n",
+        "\n",
+        "# Add aggregated categorical features\n",
+        "filtered_importances.append(model_type_importance)\n",
+        "filtered_names.append('model_type')\n",
+        "filtered_importances.append(condition_importance)\n",
+        "filtered_names.append('condition')\n",
+        "\n",
+        "plt.figure(figsize=(8,5))\n",
+        "plt.barh(filtered_names, filtered_importances)\n",
+        "plt.xlabel('Importance')\n",
+        "plt.title('Feature Important for Porsche Appreciation Predictor')\n",
+        "plt.tight_layout()\n",
+        "plt.savefig('../../graphs/feature_importance.jpg', dpi=300)\n",
+        "plt.show()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 98,
+      "id": "c6dfd49c",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# Save trained model\n",
+        "import os; os.makedirs('../data', exist_ok=True)\n",
+        "pickle.dump(model1, open('../data/porsche_model.pkl', 'wb'))\n",
+        "# Save OH encoder\n",
+        "pickle.dump(oh, open('../data/porsche_encoder.pkl', 'wb'))"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "b5f3c2c8",
+      "metadata": {},
+      "source": [
+        "# Model Performance\n",
+        "The **Random Forest** model achieved **79%** accuracy on the validation set, outperforming Logistic Regression (62% accuracy). The Random Forest (RF) model also showed stronger performance than the Linear Regression (LR) model across other metrics: **77%** precision, **81%** recall, and **79%** F1-score, indicating good balance between identifying appreciating Porsches and avoiding false positives.\n",
+        "\n",
+        "The confusion matrices of both models also show the stark difference in accuracy between them.\n",
+        "\n",
+        "Next, the ROC-AUC scores, which measure how well the models separate the two classes across all possible thresholds (from 1.0 to 0.0). The RF model has a score of **0.882** while the LR model has a score of **0.619**. That means when the RF model has to pick between a random car that will appreciate in value and a car that will depreciate in value, the model ranks the former higher 88.3% of the time.\n",
+        "\n",
+        "With the LR model, it's like flipping an unfair coin; almost a 50/50 chance, almost not. It's not useful for wise prediction.\n",
+        "\n",
+        "Therefore, the winning model is the RF model.\n",
+        "\n",
+        "# Feature Importance Analysis\n",
+        "Feature importance analysis revealed that **price_now** is the strongest predictor of Porsche appreciation, with an importance score of approximately **0.30**. This suggests that **current market price** is a key indicator of whether a vehicle will appreciate.\n",
+        "\n",
+        "**Model year** and **mileage** follow with similar importance scores (**~0.13** and **~0.12**, respectively), indicating that both the **age** and **usage history** of the vehicle play meaningful roles in appreciation prediction.\n",
+        "\n",
+        "The categorical features model_type and condition also contribute to the model's predictions, though their aggregated importance is lower than the numerical features."
+      ]
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "display_name": "venv",
+      "language": "python",
+      "name": "python3"
+    },
+    "language_info": {
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "file_extension": ".py",
+      "mimetype": "text/x-python",
+      "name": "python",
+      "nbconvert_exporter": "python",
+      "pygments_lexer": "ipython3",
+      "version": "3.11.9"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
+````
+
+## File: requirements.txt
+````
+aiohappyeyeballs==2.6.1
+aiohttp==3.13.2
+aiosignal==1.4.0
+aiosmtplib==5.0.0
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.12.0
+asttokens==3.0.1
+async-generator==1.10
+attrs==25.4.0
+bcrypt==5.0.0
+beautifulsoup4==4.14.3
+blinker==1.9.0
+cachetools==6.2.3
+certifi==2026.1.4
+cffi==2.0.0
+charset-normalizer==3.4.4
+click==8.3.1
+clip @ git+https://github.com/openai/CLIP.git@dcba3cb2e2827b402d2701e7e1c7d9fed8a20ef1
+colorama==0.4.6
+comm==0.2.3
+contourpy==1.3.3
+cryptography==46.0.3
+cycler==0.12.1
+debugpy==1.8.18
+decorator==5.2.1
+deprecation==2.1.0
+distro==1.9.0
+dnspython==2.8.0
+ecdsa==0.19.1
+email-validator==2.3.0
+executing==2.2.1
+fastapi==0.124.4
+fastapi-mail==1.6.0
+filelock==3.20.0
+Flask==3.1.3
+fonttools==4.61.1
+frozenlist==1.8.0
+fsspec==2025.12.0
+ftfy==6.3.1
+google-ai-generativelanguage==0.6.15
+google-api-core==2.28.1
+google-api-python-client==2.187.0
+google-auth==2.48.0
+google-auth-httplib2==0.2.1
+google-auth-oauthlib==1.2.3
+google-genai==1.61.0
+google-generativeai==0.8.6
+googleapis-common-protos==1.72.0
+grpcio==1.76.0
+grpcio-status==1.71.2
+gspread==6.2.1
+gunicorn==26.0.0
+h11==0.16.0
+h2==4.3.0
+hpack==4.1.0
+httpcore==1.0.9
+httplib2==0.31.0
+httptools==0.7.1
+httpx==0.28.1
+huggingface-hub==0.36.0
+hyperframe==6.1.0
+idna==3.11
+importlib_metadata==8.7.1
+iniconfig==2.3.0
+ipykernel==7.1.0
+ipython==9.8.0
+ipython_pygments_lexers==1.1.1
+itsdangerous==2.2.0
+jedi==0.19.2
+Jinja2==3.1.6
+jiter==0.12.0
+joblib==1.5.2
+jupyter_client==8.7.0
+jupyter_core==5.9.1
+kiwisolver==1.4.9
+Markdown==3.10
+MarkupSafe==3.0.3
+matplotlib==3.10.8
+matplotlib-inline==0.2.1
+mpmath==1.3.0
+multidict==6.7.0
+mypy_extensions==1.1.0
+nest-asyncio==1.6.0
+networkx==3.6.1
+numpy==2.3.5
+oauthlib==3.3.1
+openai==2.11.0
+orjson==3.11.5
+outcome==1.3.0.post0
+packaging==25.0
+pandas==2.3.3
+parso==0.8.5
+passlib==1.7.4
+pillow==12.0.0
+platformdirs==4.5.1
+pluggy==1.6.0
+portalocker==3.2.0
+postgrest==2.25.1
+prompt_toolkit==3.0.52
+propcache==0.4.1
+proto-plus==1.26.1
+protobuf==5.29.5
+psutil==7.1.3
+pure_eval==0.2.3
+pyasn1==0.6.1
+pyasn1_modules==0.4.2
+pycparser==2.23
+pydantic==2.12.5
+pydantic-settings==2.12.0
+pydantic_core==2.41.5
+Pygments==2.19.2
+PyJWT==2.10.1
+pymilvus==2.6.6
+pyparsing==3.2.5
+PySocks==1.7.1
+pytesseract==0.3.13
+pytest==9.0.2
+pytest-asyncio==1.3.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.1
+python-jose==3.5.0
+python-multipart==0.0.20
+pytz==2025.2
+pywin32==311
+PyYAML==6.0.3
+pyzmq==27.1.0
+qdrant-client==1.16.2
+realtime==2.25.1
+regex==2025.11.3
+requests==2.32.5
+requests-oauthlib==2.0.0
+rsa==4.9.1
+safetensors==0.7.0
+scikit-learn==1.8.0
+scipy==1.16.3
+seaborn==0.13.2
+selenium==4.40.0
+sentence-transformers==5.2.0
+six==1.17.0
+sniffio==1.3.1
+sortedcontainers==2.4.0
+soupsieve==2.8.3
+stack-data==0.6.3
+starlette==0.50.0
+storage3==2.25.1
+StrEnum==0.4.15
+supabase==2.25.1
+supabase-auth==2.25.1
+supabase-functions==2.25.1
+sympy==1.14.0
+tenacity==9.1.2
+threadpoolctl==3.6.0
+tokenizers==0.22.2
+torch==2.9.1+cpu
+torchaudio==2.9.1+cpu
+torchvision==0.24.1+cpu
+tornado==6.5.3
+tqdm==4.67.1
+traitlets==5.14.3
+transformers==4.57.3
+trio==0.32.0
+trio-typing==0.10.0
+trio-websocket==0.12.2
+types-certifi==2021.10.8.3
+types-urllib3==1.26.25.14
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+tzdata==2025.3
+uritemplate==4.2.0
+urllib3==2.6.3
+uvicorn==0.38.0
+watchfiles==1.1.1
+wcwidth==0.2.14
+websocket-client==1.9.0
+websockets==15.0.1
+Werkzeug==3.1.8
+wsproto==1.3.2
+yarl==1.22.0
+zipp==3.23.0
+
+pkg_resources
 ````
