@@ -25,11 +25,7 @@ wheels/
 
 # Data files (too large for git)
 project/data/
-
-# Model files
-*.pkl
-*.h5
-*.model
+_copy-me/
 
 # Log files
 *.log

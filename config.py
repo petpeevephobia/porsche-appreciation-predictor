@@ -19,14 +19,11 @@ COLUMNS = ["model_year", "model_type", "mileage", "condition", "price_now", "pri
 # Column names for the years_ago CSV (historical 2020-2022 listings)
 YEARS_AGO_COLUMNS = ["model_year", "model_type", "mileage", "condition", "sale_price", "sale_date", "source"]
 
-# Scraper Configuration
-BASE_URL = "https://bringatrailer.com"
-REQUEST_DELAY = 1  # Seconds between requests to be respectful
-MAX_RETRIES = 3
-
-# Image Scraper Configuration
-IMAGE_SAVE_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "images")
-MAX_IMAGES_PER_LISTING = 12
-
-# Description Scraper Configuration
-DESCRIPTION_SAVE_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "descriptions")
+# Result card visibility
+# Toggle which of the 4 result cards are computed and shown. Applies globally.
+DISPLAY_CARDS = {
+    "vehicle_info":     True,   # Card 1: Vehicle Detected
+    "condition_report": False,   # Card 2: Condition Report
+    "valuation":        True,   # Card 3: Market Valuation
+    "appreciation":     True,   # Card 4: 3-Year Outlook
+}

@@ -18,13 +18,15 @@ from qdrant_client import QdrantClient
 import google.genai as genai
 from dotenv import load_dotenv
 
+import config
+
 load_dotenv()
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, 'project', 'data')
 
-# #region agent log
+#region agent log
 _dbg_pkl_m = os.path.join(DATA, 'porsche_model.pkl')
 _dbg_pkl_e = os.path.join(DATA, 'porsche_encoder.pkl')
 try:
@@ -53,26 +55,26 @@ try:
         _dbg_f.write(json.dumps(_dbg_payload) + '\n')
 except OSError:
     pass
-# #endregion
+#endregion
 
 _missing_required = [p for p in (_dbg_pkl_m, _dbg_pkl_e) if not os.path.exists(p)]
 if _missing_required:
-    # #region agent log
-    _dbg_miss = {
-        'sessionId': '08e1f3',
-        'runId': 'post-fix',
-        'hypothesisId': 'VERIFY',
-        'location': 'app.py:missing_required_pkl',
-        'message': 'fail-fast exit before heavy model load',
-        'data': {'missing_paths': _missing_required},
-        'timestamp': int(__import__('time').time() * 1000),
-    }
-    try:
-        with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fm:
-            _dbg_fm.write(json.dumps(_dbg_miss) + '\n')
-    except OSError:
-        pass
-    # #endregion
+    #region agent log
+    # _dbg_miss = {
+    #     'sessionId': '08e1f3',
+    #     'runId': 'post-fix',
+    #     'hypothesisId': 'VERIFY',
+    #     'location': 'app.py:missing_required_pkl',
+    #     'message': 'fail-fast exit before heavy model load',
+    #     'data': {'missing_paths': _missing_required},
+    #     'timestamp': int(__import__('time').time() * 1000),
+    # }
+    # try:
+    #     with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fm:
+    #         _dbg_fm.write(json.dumps(_dbg_miss) + '\n')
+    # except OSError:
+    #     pass
+    #endregion
     print('\nMissing required trained model files:')
     for _p in _missing_required:
         print(f'  - {_p}')
@@ -82,22 +84,22 @@ if _missing_required:
     )
     sys.exit(1)
 
-# #region agent log
-_dbg_ok = {
-    'sessionId': '08e1f3',
-    'runId': 'post-fix',
-    'hypothesisId': 'VERIFY',
-    'location': 'app.py:required_pkl_ok',
-    'message': 'both sklearn pickle paths exist; continuing startup',
-    'data': {'model': _dbg_pkl_m, 'encoder': _dbg_pkl_e},
-    'timestamp': int(__import__('time').time() * 1000),
-}
-try:
-    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fok:
-        _dbg_fok.write(json.dumps(_dbg_ok) + '\n')
-except OSError:
-    pass
-# #endregion
+#region agent log
+# _dbg_ok = {
+#     'sessionId': '08e1f3',
+#     'runId': 'post-fix',
+#     'hypothesisId': 'VERIFY',
+#     'location': 'app.py:required_pkl_ok',
+#     'message': 'both sklearn pickle paths exist; continuing startup',
+#     'data': {'model': _dbg_pkl_m, 'encoder': _dbg_pkl_e},
+#     'timestamp': int(__import__('time').time() * 1000),
+# }
+# try:
+#     with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fok:
+#         _dbg_fok.write(json.dumps(_dbg_ok) + '\n')
+# except OSError:
+#     pass
+#endregion
 
 from historical_matcher import HistoricalMatcher
 
@@ -114,23 +116,23 @@ print('  SentenceTransformer ready')
 qdrant = QdrantClient(path=os.path.join(DATA, 'qdrant_db'))
 print('  Qdrant ready')
 
-# #region agent log
-_dbg_open_path = os.path.join(DATA, 'porsche_model.pkl')
-_dbg_payload2 = {
-    'sessionId': '08e1f3',
-    'runId': 'pre-fix',
-    'hypothesisId': 'H2',
-    'location': 'app.py:before_porsche_model_open',
-    'message': 'immediately before model pickle open',
-    'data': {'open_path': _dbg_open_path, 'exists': os.path.exists(_dbg_open_path)},
-    'timestamp': int(__import__('time').time() * 1000),
-}
-try:
-    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f2:
-        _dbg_f2.write(json.dumps(_dbg_payload2) + '\n')
-except OSError:
-    pass
-# #endregion
+#region agent log
+# _dbg_open_path = os.path.join(DATA, 'porsche_model.pkl')
+# _dbg_payload2 = {
+#     'sessionId': '08e1f3',
+#     'runId': 'pre-fix',
+#     'hypothesisId': 'H2',
+#     'location': 'app.py:before_porsche_model_open',
+#     'message': 'immediately before model pickle open',
+#     'data': {'open_path': _dbg_open_path, 'exists': os.path.exists(_dbg_open_path)},
+#     'timestamp': int(__import__('time').time() * 1000),
+# }
+# try:
+#     with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f2:
+#         _dbg_f2.write(json.dumps(_dbg_payload2) + '\n')
+# except OSError:
+#     pass
+#endregion
 
 with open(os.path.join(DATA, 'porsche_model.pkl'), 'rb') as f:
     appreciation_model = pickle.load(f)
@@ -392,7 +394,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', card_flags=config.DISPLAY_CARDS)
 
 
 @app.route('/debug-log', methods=['POST'])
@@ -485,57 +487,42 @@ def analyze():
     @stream_with_context
     def generate():
         try:
-            _dbg('yield scanning', hypothesis='H-A')
-            chunk = _sse({'step': 'scanning', 'label': 'Scanning image…', 'progress': 10})
-            _dbg('about to yield scanning chunk', {'chunk': chunk}, hypothesis='H-A')
-            yield chunk
-            _dbg('yielded scanning — now running find_similar_listings', hypothesis='H-A')
-            similar = find_similar_listings(tmp.name, top_k=10)
+            cards = config.DISPLAY_CARDS
+            result = {}
 
-            _dbg('yield identifying', hypothesis='H-A')
-            yield _sse({'step': 'identifying', 'label': 'Identifying vehicle…', 'progress': 25})
+            yield _sse({'step': 'scanning', 'label': 'Scanning image…', 'progress': 10})
+            similar = find_similar_listings(tmp.name, top_k=10)
             vehicle_info = extract_vehicle_info(similar)
 
-            _dbg('yield history', hypothesis='H-A')
-            yield _sse({'step': 'history', 'label': 'Checking market history…', 'progress': 40})
+            yield _sse({'step': 'identifying', 'label': 'Identifying vehicle…', 'progress': 25})
             hist_price = get_historical_price(vehicle_info)
+            if cards['vehicle_info']:
+                result['vehicle_info'] = {k: v for k, v in vehicle_info.items() if k != 'similar_listings'}
+                result['price_3_years_ago'] = hist_price
 
-            _dbg('yield condition', hypothesis='H-A')
-            yield _sse({'step': 'condition', 'label': 'Analysing condition…', 'progress': 55})
-            condition_report = generate_condition_report(tmp.name, seller_text)
+            if cards['condition_report']:
+                yield _sse({'step': 'condition', 'label': 'Analysing condition…', 'progress': 55})
+                result['condition_report'] = generate_condition_report(tmp.name, seller_text)
 
-            _dbg('yield valuation', hypothesis='H-A')
-            yield _sse({'step': 'valuation', 'label': 'Valuing the car…', 'progress': 75})
-            llm_valuation = generate_valuation(tmp.name, vehicle_info, similar,
-                                               hist_price, asking_price,
-                                               user_mileage=user_mileage)
-            current_val = parse_llm_valuation(llm_valuation)
-            if current_val is None:
-                current_val = asking_price or float(
-                    np.median([l['price_now'] for l in similar[:5]])
-                )
+            current_val = None
+            if cards['valuation'] or cards['appreciation']:
+                yield _sse({'step': 'valuation', 'label': 'Valuing the car…', 'progress': 75})
+                llm_valuation = generate_valuation(tmp.name, vehicle_info, similar,
+                                                hist_price, asking_price, user_mileage=user_mileage)
+                current_val = parse_llm_valuation(llm_valuation) or asking_price or \
+                    float(np.median([l['price_now'] for l in similar[:5]]))
+                if cards['valuation']:
+                    result['llm_valuation'] = llm_valuation
+                    result['current_valuation'] = current_val
 
-            _dbg('yield predicting', hypothesis='H-A')
-            yield _sse({'step': 'predicting', 'label': 'Predicting appreciation…', 'progress': 90})
-            appreciation = predict_appreciation(vehicle_info, current_val, hist_price,
-                                                user_mileage=user_mileage)
+            if cards['appreciation']:
+                yield _sse({'step': 'predicting', 'label': 'Predicting appreciation…', 'progress': 90})
+                result['appreciation_prediction'] = predict_appreciation(
+                    vehicle_info, current_val, hist_price, user_mileage=user_mileage)
 
-            vehicle_info_clean = {k: v for k, v in vehicle_info.items()
-                                  if k != 'similar_listings'}
-            result = {
-                'vehicle_info':            vehicle_info_clean,
-                'price_3_years_ago':       hist_price,
-                'condition_report':        condition_report,
-                'llm_valuation':           llm_valuation,
-                'current_valuation':       current_val,
-                'appreciation_prediction': appreciation,
-            }
-            _dbg('yield done', hypothesis='H-A')
             yield _sse({'step': 'done', 'label': 'Done', 'progress': 100, 'result': result})
-            _dbg('generator finished normally', hypothesis='H-A')
-
+        
         except Exception as e:
-            _dbg('generator exception', {'error': str(e)}, hypothesis='H-A')
             yield _sse({'step': 'error', 'error': str(e)})
         finally:
             try:

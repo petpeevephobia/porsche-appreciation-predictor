@@ -81,6 +81,7 @@
         <div class="results" id="results" hidden>
 
             <!-- Card 1: Vehicle Detected -->
+            {% if card_flags.vehicle_info %}
             <div class="result-card">
                 <h2 class="card-title">Vehicle Detected</h2>
                 <div class="card-row">
@@ -104,8 +105,10 @@
                     <span class="card-value" id="r-hist-price">—</span>
                 </div>
             </div>
+            {% endif %}
 
             <!-- Card 2: Condition Report -->
+            {% if card_flags.condition_report %}
             <div class="result-card">
                 <h2 class="card-title">Condition Report</h2>
                 <div class="condition-header">
@@ -136,16 +139,20 @@
 
                 <p class="card-summary" id="r-cond-summary"></p>
             </div>
+            {% endif %}
 
             <!-- Card 3: Market Valuation -->
+            {% if card_flags.valuation %}
             <div class="result-card">
                 <h2 class="card-title">Market Valuation</h2>
                 <p class="valuation-label">Current estimated value</p>
                 <p class="valuation-figure" id="r-valuation-figure">—</p>
                 <div class="valuation-text" id="r-valuation-text"></div>
             </div>
+            {% endif %}
 
             <!-- Card 4: 3-Year Appreciation -->
+            {% if card_flags.appreciation %}
             <div class="result-card">
                 <h2 class="card-title">3-Year Outlook</h2>
                 <p class="appreciation-badge" id="r-appreciation-badge"></p>
@@ -154,6 +161,7 @@
                     <span class="card-value" id="r-confidence">—</span>
                 </div>
             </div>
+            {%  endif %}
 
         </div><!-- /results -->
     </div><!-- /container -->
@@ -240,9 +248,10 @@
 
     <script>
         // #region agent log
-        const _dl = (msg, data, hyp) => fetch('/debug-log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId:'8147b6', location:'index.html', message:msg, data, hypothesisId:hyp, timestamp:Date.now()})}).catch(()=>{});
+        // const _dl = (msg, data, hyp) => fetch('/debug-log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId:'8147b6', location:'index.html', message:msg, data, hypothesisId:hyp, timestamp:Date.now()})}).catch(()=>{});
         // #endregion
 
+        const CARD_FLAGS = {{ card_flags | tojson }};
         const uploadBox    = document.getElementById('uploadBox');
         const uploadBtn    = document.getElementById('uploadBtn');
         const uploadPrompt = document.getElementById('uploadPrompt');
@@ -355,7 +364,7 @@
             const timeoutId  = setTimeout(() => controller.abort(), 3 * 60 * 1000);
 
             // #region agent log
-            _dl('fetch starting', {containerHidden: progressContainer.hidden, containerInDOM: !!progressContainer}, 'H-D');
+            // _dl('fetch starting', {containerHidden: progressContainer.hidden, containerInDOM: !!progressContainer}, 'H-D');
             // #endregion
 
             try {
@@ -366,7 +375,7 @@
                 });
 
                 // #region agent log
-                _dl('response received', {ok: resp.ok, status: resp.status, bodyIsNull: resp.body === null, bodyType: typeof resp.body}, 'H-B');
+                // _dl('response received', {ok: resp.ok, status: resp.status, bodyIsNull: resp.body === null, bodyType: typeof resp.body}, 'H-B');
                 // #endregion
 
                 if (!resp.ok) {
@@ -384,7 +393,7 @@
                     const { done, value } = await reader.read();
                     readCount++;
                     // #region agent log
-                    _dl('reader.read chunk', {readCount, done, byteLength: value ? value.byteLength : 0, preview: value ? new TextDecoder().decode(value).slice(0, 150) : '(done)'}, 'H-A H-C');
+                    // _dl('reader.read chunk', {readCount, done, byteLength: value ? value.byteLength : 0, preview: value ? new TextDecoder().decode(value).slice(0, 150) : '(done)'}, 'H-A H-C');
                     // #endregion
                     if (done) break;
 
@@ -397,7 +406,7 @@
                         const event = JSON.parse(chunk.slice(6));
 
                         // #region agent log
-                        _dl('setProgress called', {step: event.step, progress: event.progress, label: event.label}, 'H-C H-D');
+                        // _dl('setProgress called', {step: event.step, progress: event.progress, label: event.label}, 'H-C H-D');
                         // #endregion
 
                         if (event.step === 'error') {
@@ -416,6 +425,7 @@
                     }
                 }
             } catch (err) {
+                console.error('runAnalysis error:', err);   // add this line
                 if (err.name === 'AbortError') {
                     showError('Analysis timed out — the server took too long to respond.');
                 } else {
@@ -438,18 +448,18 @@
             progressLabel.textContent = label;
             // #region agent log
             requestAnimationFrame(() => {
-                _dl('setProgress RAF dims', {
-                    pct,
-                    fillStyleWidth: progressFill.style.width,
-                    fillOffsetWidth: progressFill.offsetWidth,
-                    fillOffsetHeight: progressFill.offsetHeight,
-                    fillClientHeight: progressFill.clientHeight,
-                    trackOffsetHeight: progressFill.parentElement ? progressFill.parentElement.offsetHeight : 'N/A',
-                    containerOffsetHeight: progressContainer.offsetHeight,
-                    containerDisplay: getComputedStyle(progressContainer).display,
-                    fillDisplay: getComputedStyle(progressFill).display,
-                    fillBg: getComputedStyle(progressFill).backgroundColor,
-                }, 'H-E H-F H-G');
+                // _dl('setProgress RAF dims', {
+                //     pct,
+                //     fillStyleWidth: progressFill.style.width,
+                //     fillOffsetWidth: progressFill.offsetWidth,
+                //     fillOffsetHeight: progressFill.offsetHeight,
+                //     fillClientHeight: progressFill.clientHeight,
+                //     trackOffsetHeight: progressFill.parentElement ? progressFill.parentElement.offsetHeight : 'N/A',
+                //     containerOffsetHeight: progressContainer.offsetHeight,
+                //     containerDisplay: getComputedStyle(progressContainer).display,
+                //     fillDisplay: getComputedStyle(progressFill).display,
+                //     fillBg: getComputedStyle(progressFill).backgroundColor,
+                // }, 'H-E H-F H-G');
             });
             // #endregion
         }
@@ -460,59 +470,75 @@
         }
 
         // ── Result rendering ───────────────────────────────────────────────
+        // const CARD_FLAGS = {{ card_flags | tojson }};
         function renderResults(d) {
             const v  = d.vehicle_info;
-            const cr = d.condition_report;
             const ap = d.appreciation_prediction;
 
             // Card 1 — Vehicle
-            setText('r-model',      `Porsche ${v.model_type}`);
-            setText('r-year',       v.model_year ?? '—');
-            setText('r-condition',  v.condition ?? '—');
-            setText('r-mileage',    v.mileage ? `${v.mileage.toLocaleString()} mi` : '—');
-            setText('r-hist-price', d.price_3_years_ago
-                ? `$${Math.round(d.price_3_years_ago).toLocaleString()} (3 yrs ago)`
-                : 'Insufficient data');
+            if (CARD_FLAGS.vehicle_info) {
+                setText('r-model', `Porsche ${v.model_type}`);
+                setText('r-model',      `Porsche ${v.model_type}`);
+                setText('r-year',       v.model_year ?? '—');
+                setText('r-condition',  v.condition ?? '—');
+                setText('r-mileage',    v.mileage ? `${v.mileage.toLocaleString()} mi` : '—');
+                setText('r-hist-price', d.price_3_years_ago
+                    ? `$${Math.round(d.price_3_years_ago).toLocaleString()} (3 yrs ago)`
+                    : 'Insufficient data');
+            }
 
             // Card 2 — Condition
-            setText('r-cond-grade', cr.overall_condition_grade ?? '—');
-            setText('r-cond-score', cr.condition_score != null
-                ? `${cr.condition_score} / 10` : '—');
-
-            renderList('r-red-flags', 'r-red-flags-section',
-                (cr.red_flags || []).map(f => f));
-
-            renderList('r-inconsistencies', 'r-inconsistencies-section',
-                (cr.text_photo_inconsistencies || []).map(
-                    x => `${x.claim_in_text} → ${x.what_photos_show}`));
-
-            renderList('r-restoration', 'r-restoration-section',
-                cr.recommended_restoration_steps || []);
-
-            setText('r-cond-summary', cr.summary || '');
+            if (CARD_FLAGS.condition_report) {
+                const cr = d.condition_report;
+                setText('r-cond-grade', cr.overall_condition_grade ?? '—');
+                setText('r-cond-score', cr.condition_score != null
+                    ? `${cr.condition_score} / 10` : '—');
+    
+                renderList('r-red-flags', 'r-red-flags-section',
+                    (cr.red_flags || []).map(f => f));
+    
+                renderList('r-inconsistencies', 'r-inconsistencies-section',
+                    (cr.text_photo_inconsistencies || []).map(
+                        x => `${x.claim_in_text} → ${x.what_photos_show}`));
+    
+                renderList('r-restoration', 'r-restoration-section',
+                    cr.recommended_restoration_steps || []);
+    
+                setText('r-cond-summary', cr.summary || '');
+            }
 
             // Card 3 — Valuation
-            setText('r-valuation-figure',
-                d.current_valuation
-                    ? `$${Math.round(d.current_valuation).toLocaleString()}`
-                    : '—');
-            document.getElementById('r-valuation-text').innerHTML =
-                formatValuationText(d.llm_valuation || '');
+            if (CARD_FLAGS.valuation) {
+                setText('r-valuation-figure',
+                    d.current_valuation
+                        ? `$${Math.round(d.current_valuation).toLocaleString()}`
+                        : '—');
+                document.getElementById('r-valuation-text').innerHTML =
+                    formatValuationText(d.llm_valuation || '');
+            }
 
             // Card 4 — Appreciation
-            const badge = document.getElementById('r-appreciation-badge');
-            if (ap.will_appreciate) {
-                badge.textContent = '↑ Likely to appreciate';
-                badge.className   = 'appreciation-badge appreciate';
-            } else {
-                badge.textContent = '↓ Likely to depreciate';
-                badge.className   = 'appreciation-badge depreciate';
+            if (CARD_FLAGS.appreciation) {
+                const badge = document.getElementById('r-appreciation-badge');
+                if (ap.will_appreciate) {
+                    badge.textContent = '↑ Likely to appreciate';
+                    badge.className   = 'appreciation-badge appreciate';
+                } else {
+                    badge.textContent = '↓ Likely to depreciate';
+                    badge.className   = 'appreciation-badge depreciate';
+                }
+                setText('r-confidence', `${(ap.confidence * 100).toFixed(0)}%`);
             }
-            setText('r-confidence', `${(ap.confidence * 100).toFixed(0)}%`);
         }
 
         function setText(id, value) {
-            document.getElementById(id).textContent = value;
+            // document.getElementById(id).textContent = value;
+            const el = document.getElementById(id);
+            if (!el) {
+                console.error('Missing DOM element for id:', id);
+                return;
+            }
+            el.textContent = value;
         }
 
         function renderList(listId, sectionId, items) {
