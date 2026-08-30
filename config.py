@@ -26,4 +26,5 @@ DISPLAY_CARDS = {
     "condition_report": False,   # Card 2: Condition Report
     "valuation":        True,   # Card 3: Market Valuation
     "appreciation":     True,   # Card 4: 3-Year Outlook
+    "manufacturing_history": True,   # Card 5: Manufacturing History
 }

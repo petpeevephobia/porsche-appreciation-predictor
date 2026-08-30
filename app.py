@@ -19,6 +19,7 @@ import google.genai as genai
 from dotenv import load_dotenv
 
 import config
+from manufacturing_history import MANUFACTURING_HISTORY, DEFAULT_HISTORY
 
 load_dotenv()
 
@@ -519,6 +520,11 @@ def analyze():
                 yield _sse({'step': 'predicting', 'label': 'Predicting appreciation…', 'progress': 90})
                 result['appreciation_prediction'] = predict_appreciation(
                     vehicle_info, current_val, hist_price, user_mileage=user_mileage)
+
+            if cards['manufacturing_history']:
+                result['manufacturing_history'] = MANUFACTURING_HISTORY.get(
+                    vehicle_info.get('model_type'), DEFAULT_HISTORY
+                )
 
             yield _sse({'step': 'done', 'label': 'Done', 'progress': 100, 'result': result})
         

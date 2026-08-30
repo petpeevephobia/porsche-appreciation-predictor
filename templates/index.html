@@ -107,6 +107,13 @@
             </div>
             {% endif %}
 
+            {% if card_flags.manufacturing_history %}
+            <div class="result-card">
+                <h2 class="card-title">Manufacturing History</h2>
+                <p class="card-summary" id="r-mfg-history">—</p>
+            </div>
+            {% endif %}
+
             <!-- Card 2: Condition Report -->
             {% if card_flags.condition_report %}
             <div class="result-card">
@@ -485,6 +492,10 @@
                 setText('r-hist-price', d.price_3_years_ago
                     ? `$${Math.round(d.price_3_years_ago).toLocaleString()} (3 yrs ago)`
                     : 'Insufficient data');
+            }
+
+            if (CARD_FLAGS.manufacturing_history) {
+                setText('r-mfg-history', d.manufacturing_history || '—');
             }
 
             // Card 2 — Condition
