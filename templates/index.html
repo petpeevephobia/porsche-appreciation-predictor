@@ -107,10 +107,30 @@
             </div>
             {% endif %}
 
+            <!-- Manufacturing history card -->
             {% if card_flags.manufacturing_history %}
             <div class="result-card">
                 <h2 class="card-title">Manufacturing History</h2>
                 <p class="card-summary" id="r-mfg-history">—</p>
+            </div>
+            {% endif %}
+
+            <!-- Rarity card -->
+            {% if card_flags.rarity %}
+            <div class="result-card">
+                <h2 class="card-title">Rarity</h2>
+                <div class="card-row">
+                    <span class="card-label">Tier</span>
+                    <span class="card-value" id="r-rarity-tier">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Est. production</span>
+                    <span class="card-value" id="r-rarity-production">—</span>
+                </div>
+                <div id="r-rarity-flags-section" hidden>
+                    <p class="card-section-title">Noted in listing (unverified)</p>
+                    <ul class="card-list" id="r-rarity-flags"></ul>
+                </div>
             </div>
             {% endif %}
 
@@ -494,8 +514,19 @@
                     : 'Insufficient data');
             }
 
+            // Manufacturing history
             if (CARD_FLAGS.manufacturing_history) {
                 setText('r-mfg-history', d.manufacturing_history || '—');
+            }
+
+            // Rarity
+            if (CARD_FLAGS.rarity) {
+                const r = d.rarity;
+                setText('r-rarity-tier', r.tier ?? '—');
+                setText('r-rarity-production', r.production_total
+                    ? `~${r.production_total.toLocaleString()} units`
+                    : 'Unknown / mass-production platform');
+                renderList('r-rarity-flags', 'r-rarity-flags-section', r.flags ?? []);
             }
 
             // Card 2 — Condition

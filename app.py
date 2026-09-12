@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 
 import config
 from manufacturing_history import MANUFACTURING_HISTORY, DEFAULT_HISTORY
+from rarity import compute_rarity
 
 load_dotenv()
 
@@ -501,6 +502,14 @@ def analyze():
                 result['vehicle_info'] = {k: v for k, v in vehicle_info.items() if k != 'similar_listings'}
                 result['price_3_years_ago'] = hist_price
 
+            if cards['manufacturing_history']:
+                result['manufacturing_history'] = MANUFACTURING_HISTORY.get(
+                    vehicle_info.get('model_type'), DEFAULT_HISTORY
+                )
+
+            if cards['rarity']:
+                result['rarity'] = compute_rarity(vehicle_info, seller_text)
+
             if cards['condition_report']:
                 yield _sse({'step': 'condition', 'label': 'Analysing condition…', 'progress': 55})
                 result['condition_report'] = generate_condition_report(tmp.name, seller_text)
@@ -520,11 +529,6 @@ def analyze():
                 yield _sse({'step': 'predicting', 'label': 'Predicting appreciation…', 'progress': 90})
                 result['appreciation_prediction'] = predict_appreciation(
                     vehicle_info, current_val, hist_price, user_mileage=user_mileage)
-
-            if cards['manufacturing_history']:
-                result['manufacturing_history'] = MANUFACTURING_HISTORY.get(
-                    vehicle_info.get('model_type'), DEFAULT_HISTORY
-                )
 
             yield _sse({'step': 'done', 'label': 'Done', 'progress': 100, 'result': result})
         

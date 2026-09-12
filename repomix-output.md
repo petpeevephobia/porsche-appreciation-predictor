@@ -64,6 +64,7 @@ app.py
 condition_analyzer.py
 config.py
 historical_matcher.py
+manufacturing_history.py
 PORTABILITY.md
 README.md
 requirements.txt
@@ -1767,6 +1768,53 @@ class HistoricalMatcher:
             return int(statistics.median(prices))
 ````
 
+## File: manufacturing_history.py
+````python
+### Static manufacturing history blurbs, keyed by model_type.
+
+MANUFACTURING_HISTORY = {
+  "911": "The Porsche 911 entered production in September 1964 at Porsche's Zuffenhausen factory in Stuttgart, following its unveiling at the 1963 Frankfurt Motor Show. Originally designated the 901, it succeeded the 356 as Porsche's flagship sports car and has been continuously manufactured at Zuffenhausen for over 60 years. Eight distinct generations have been produced (original 1963–1973, G-series 1974–1989, 964, 993, 996, 997, 991, and 992), with total production exceeding 1.2 million units. The 911 has maintained its signature rear-engine, flat-six configuration throughout its history, though water cooling replaced air cooling with the 996 generation in 1997.",
+  
+  "912": "The Porsche 912 was produced from April 1965 to July 1969 as an entry-level alternative to the 911, using the 911 bodyshell paired with the 356's 1.6-liter flat-four engine. Approximately 32,000 units were built during this initial run, with the model priced about 25% lower than the 911 to retain customers transitioning from the 356. The 912 was revived briefly in 1975–1976 as the 912E (Einspritzung, meaning fuel injection) exclusively for the North American market, with 2,099 examples produced to bridge the gap between the discontinued 914 and the incoming 924.",
+  
+  "914": "The Porsche 914 was manufactured from 1969 to 1976 as a joint venture between Porsche and Volkswagen, serving as the entry-level model replacing the 912. Initially assembled at Volkswagen's facility, it featured a mid-engine layout and was available with either a VW-derived flat-four or Porsche's flat-six engine (914/6). Production totaled approximately 119,000 units across both variants. The 914 was discontinued in 1976 when Porsche needed a stopgap model before the 924's launch, leading to the brief reintroduction of the 912E for the 1976 model year.",
+  
+  "356": "The Porsche 356 was the company's first production automobile, with initial manufacturing beginning in 1948 at a sawmill in Gmünd, Austria, where approximately 50 aluminum-bodied cars were built. Production moved to Stuttgart, Germany, in 1950, continuing at the Reutter coachbuilder facility until April 1965. The 356 evolved through Pre-A, A, B, and C variants over its 15-year production run, establishing Porsche's rear-engine, air-cooled sports car formula. Total production reached approximately 76,000 units across coupe, cabriolet, and speedster body styles.",
+  
+  "924": "The Porsche 924 was produced from 1976 to 1988 at Audi's factory in Neckarsulm, Germany, replacing the 914 as Porsche's entry-level sports car. It was the first production Porsche to feature water cooling and a front-engine, rear-wheel-drive transaxle layout. Originally developed as a joint Volkswagen-Porsche project, Porsche continued production independently after VW withdrew. Just over 150,000 units were manufactured during its 12-year run. The 924 was succeeded in the U.S. market in 1983 by the 944, though base 924 production continued in Europe until 1986, with the 924S (using the 944 engine) produced from 1986 to 1988.",
+  
+  "928": "The Porsche 928 was manufactured from 1978 to 1995, making it the longest-running Porsche transaxle model. Originally conceived in the early 1970s as a potential 911 replacement, its launch was delayed by the oil crisis. The 928 featured a front-mounted, water-cooled V8 engine (Porsche's first V8 production car) with a rear transaxle for optimal weight distribution. Production totaled approximately 61,000 units across its 17-year run. The 928 was assembled at Porsche's Neckarsulm facility alongside the 924 and 944 before production ended in 1995 due to declining sales.",
+  
+  "944": "The Porsche 944 was produced from 1982 to 1991 as an evolution of the 924, featuring a new Porsche-designed engine rather than the VW-sourced unit. Manufactured at Audi's Neckarsulm plant with engines built at Porsche's Zuffenhausen facility, the 944 became Porsche's most successful sports car until the Boxster and 997 Carrera, with over 163,000 units produced. Available in naturally aspirated and turbocharged variants, as well as coupe and cabriolet body styles, the 944 was succeeded by the 968 in 1992, which represented the final evolution of the 924/944 platform before production ended in 1995.",
+  
+  "959": "The Porsche 959 was manufactured from 1986 to 1988 (with eight additional cars assembled from spare parts in 1992–1993) at the Baur coachworks in Stuttgart, not on Porsche's main production line. Developed initially as a Group B rally car, it required 200 road-legal units for FIA homologation. Production totaled 337 units, including 292 road cars (113 in 1987, 179 in 1988), 37 prototypes and pre-production models, and eight late-assembled Komfort variants. The 959 was offered in Comfort and Sport trim levels, with the Sport version featuring larger turbochargers and reduced weight. Only 29 Sport models were built.",
+  
+  "Boxster": "The Porsche Boxster entered production in 1996 at Porsche's Zuffenhausen facility, sharing its platform with the later-introduced Cayman. The first generation (986) was manufactured from 1996 to 2004, with additional production at Valmet Automotive in Finland from 1997 to 2011. After Volkswagen's acquisition of Porsche, Boxster production moved to the former Karmann plant in Osnabrück, Germany, in 2012. Four generations have been produced (986, 987, 981, and 982/718), with total Boxster production exceeding 400,000 units. Production of internal combustion engine Boxsters ended in October 2025 after nearly three decades.",
+  
+  "Cayman": "The Porsche Cayman was introduced in 2006 as a coupe variant of the Boxster, initially manufactured exclusively at Valmet Automotive in Finland through 2012. Production shifted to Osnabrück, Germany, under Volkswagen ownership from 2012 onward, with some assembly also occurring at Porsche's Zuffenhausen plant from 2016. Three generations have been produced (987C, 981C, and 982C/718), with total Cayman production exceeding 150,000 units. Like the Boxster, internal combustion engine Cayman production ended in October 2025, concluding nearly 20 years of manufacturing.",
+  
+  "957": "The Porsche 957 is the internal type designation for the second-generation Cayenne (9PA1), produced from 2007 to 2010. This mid-cycle update of the first-generation Cayenne (955/9PA, 2004–2006) featured revised styling, improved engines, and enhanced technology. The 957 was assembled at Porsche's Leipzig plant in Germany, sharing its platform with the Volkswagen Touareg and Audi Q7. Production of the 957 ended in 2010 when the all-new third-generation Cayenne (958/92A) was introduced for the 2011 model year.",
+  
+  "958": "The Porsche 958 is the internal type designation for the third-generation Cayenne, produced from 2011 to 2018. The initial 958.1 ran from 2011 to 2014, followed by the updated 958.2 from 2015 to 2018. Manufactured at Porsche's Leipzig facility in Germany, the 958 represented a significant evolution from the 957, with lighter construction, more efficient engines, and improved handling dynamics. The 958 was succeeded by the fourth-generation Cayenne (PO536/E3) in 2018, which introduced plug-in hybrid variants and further technological advancements.",
+  
+  "550": "The Porsche 550 Spyder was produced from 1953 to 1956 as Porsche's first purpose-built racing car, with only 90 examples manufactured. The 550 featured a lightweight aluminum body on a ladder-frame chassis, weighing under 600 kg, and was powered by a mid-mounted 1.5-liter Type 547 four-cam air-cooled flat-four engine. Of the 90 units built, 15 were prototypes, with the remaining 75 being production cars for private customers. The 550 earned the nickname 'Giant Killer' for its ability to defeat larger, more powerful competitors, achieving 95 victories and 75 class wins across 370 races.",
+  
+  "356 Speedster": "The Porsche 356 Speedster was produced from September 1954 to August 1958 as a lightweight, open-top variant designed primarily for the American market at the suggestion of U.S. importer Max Hoffman. A total of 4,854 Speedsters were built across all 356 variants (Pre-A, A), with 2,347 examples of the 356 A Speedster produced specifically. The Speedster featured a stripped-down, sportier design compared to the standard Cabriolet, with a lower windshield, lighter body, and minimal interior trim. It was replaced in late 1958 by the Convertible D model.",
+  
+  "934": "The Porsche 934 was produced in 1976–1977 as a Group 4 GT racing car based on the 930 Turbo (911 Turbo). Only 31 examples were built, with the first 30 cars receiving consecutive chassis numbers (9306700151 to 0180) and the 31st on chassis 9306700540. All 934s were left-hand drive and built for customer racing teams. The 934 dominated the 1976 racing season, winning six of seven World Sportscar Championship races and securing GT championships across Europe. It was not permitted to compete in the 1976 IMSA series due to its turbocharged engine.",
+  
+  "935": "The Porsche 935 was manufactured from 1976 to 1981 as a Group 5 'Silhouette' racing car based on the 911 Turbo, designed to compete in the World Championship of Makes, IMSA GT, and Deutsche Rennsport Meisterschaft. The initial 935/76 debuted in March 1976, with customer car production beginning in winter 1976/1977. Approximately 40 customer 935s were built by Porsche between 1977 and 1979 for private racing teams, in addition to factory prototypes and development cars. The 935 achieved legendary status, winning the 24 Hours of Le Mans in 1979 with the 935 K3 variant.",
+  
+  "956": "The Porsche 956 was produced from 1982 to 1984 as a Group C prototype racing car, with 28 examples built (10 for the factory team and 18 for customer teams from 1983 onward). The 956 debuted at the 1982 24 Hours of Le Mans, where factory cars finished 1-2-3, and went on to win Le Mans four consecutive years (1982–1985). The 956 featured advanced ground-effect aerodynamics and a twin-turbocharged flat-six engine. It was succeeded by the 962 in 1984, though some 956s continued racing alongside the newer model.",
+  
+  "962": "The Porsche 962 was manufactured from 1984 to 1991 as an evolution of the 956, with 91 examples built (16 for the factory and 75 for customer teams, excluding self-built customer cars). Total 956/962 production reached 121 chassis (28 956s and 93 962s), with some sources citing approximately 150 total when including customer self-built variants. The 962 won the 24 Hours of Le Mans in 1986 and 1987 for the factory team and achieved countless victories for privateer teams. A road-derived variant won Le Mans again in 1994, extending the platform's competitive legacy.",
+  
+  "918": "The Porsche 918 Spyder was produced from September 2013 to June 2015 at Porsche's Zuffenhausen factory in Stuttgart, with all 918 units handcrafted during the 21-month production run. Exactly 918 examples were built as promised, with production beginning on September 18, 2013, and the final car rolling off the line in June 2015. All 918s carried 2015 model year VINs despite spanning three calendar years. The plug-in hybrid hypercar sold out by December 2014 at a starting price of €781,000 (US$845,000), with approximately 297 units delivered to the U.S., 100 to Germany, and 100 to China."
+}
+
+DEFAULT_HISTORY = "Manufacturing history not available for this model."
+````
+
 ## File: PORTABILITY.md
 ````markdown
 # Portability Guide
@@ -1849,42 +1897,6 @@ These paths are already listed in `.gitignore`.
 | Data storage | $0 — local files only |
 | Vector DB (Qdrant local) | $0 — runs on disk |
 | Embeddings (CLIP + SentenceTransformers) | $0 — runs locally |
-````
-
-## File: config.py
-````python
-"""Configuration settings for the Porsche scraper."""
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Gemini Configuration
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
-
-# CSV Data Paths (relative to repo root: project/data/csv/)
-_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA_CSV_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "csv", "porsche_data.csv")
-YEARS_AGO_CSV_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "csv", "years_ago.csv")
-
-# Column names for the main data CSV
-COLUMNS = ["model_year", "model_type", "mileage", "condition", "price_now", "price_3_years_ago", "appreciated", "source"]
-
-# Column names for the years_ago CSV (historical 2020-2022 listings)
-YEARS_AGO_COLUMNS = ["model_year", "model_type", "mileage", "condition", "sale_price", "sale_date", "source"]
-
-# Scraper Configuration
-BASE_URL = "https://bringatrailer.com"
-REQUEST_DELAY = 1  # Seconds between requests to be respectful
-MAX_RETRIES = 3
-
-# Image Scraper Configuration
-IMAGE_SAVE_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "images")
-MAX_IMAGES_PER_LISTING = 12
-
-# Description Scraper Configuration
-DESCRIPTION_SAVE_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "descriptions")
 ````
 
 ## File: project/notebooks/01_eda.ipynb
@@ -3172,1222 +3184,38 @@ nav {
 }
 ````
 
-## File: templates/index.html
-````html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Porsche Appreciation Predictor</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
-</head>
-<body>
-    <nav>
-        <h1 class="logo">PorscheLens</h1>
-    </nav>
-
-    <div class="container">
-        <h1>Is this car worth keeping?</h1>
-
-        <!-- Upload box -->
-        <div class="upload-box" id="uploadBox">
-            <div id="uploadPrompt">
-                <p class="upload-hint">Drop an image or click to browse</p>
-                <button class="pri-btn" type="button" id="uploadBtn">Upload image</button>
-            </div>
-            <img id="imagePreview" class="image-preview" alt="Selected listing photo" hidden>
-        </div>
-        <input type="file" id="imageInput" accept="image/*" hidden>
-        <button class="reupload-link" id="reuploadBtn" type="button" hidden>Change photo</button>
-
-        <!-- Optional inputs (collapsible) -->
-        <button class="optional-toggle" id="optionalToggle" type="button">
-            <span>Add optional details</span>
-            <svg class="toggle-chevron" id="toggleChevron" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        </button>
-
-        <div class="optional-fields" id="optionalFields" hidden>
-            <textarea
-                id="sellerText"
-                class="text-input"
-                placeholder="Notes — improves condition analysis"
-                rows="4"
-            ></textarea>
-
-            <input
-                type="number"
-                id="mileage"
-                class="price-input"
-                placeholder="Mileage (miles)"
-                min="0"
-            >
-
-            <input
-                type="number"
-                id="askingPrice"
-                class="price-input"
-                placeholder="Asking price (USD)"
-                min="0"
-            >
-        </div>
-
-        <!-- Analyse button -->
-        <button class="pri-btn analyse-btn" id="analyseBtn" type="button" disabled>
-            Analyse
-        </button>
-
-        <!-- Progress bar -->
-        <div id="progressContainer" hidden>
-            <div class="progress-track">
-                <div class="progress-fill" id="progressFill"></div>
-            </div>
-            <p class="progress-label" id="progressLabel"></p>
-        </div>
-
-        <!-- Error message -->
-        <p class="error-msg" id="errorMsg" hidden></p>
-
-        <!-- Results — hidden until the API responds -->
-        <div class="results" id="results" hidden>
-
-            <!-- Card 1: Vehicle Detected -->
-            <div class="result-card">
-                <h2 class="card-title">Vehicle Detected</h2>
-                <div class="card-row">
-                    <span class="card-label">Model</span>
-                    <span class="card-value" id="r-model">—</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Year</span>
-                    <span class="card-value" id="r-year">—</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Condition</span>
-                    <span class="card-value" id="r-condition">—</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Mileage</span>
-                    <span class="card-value" id="r-mileage">—</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Historical price</span>
-                    <span class="card-value" id="r-hist-price">—</span>
-                </div>
-            </div>
-
-            <!-- Card 2: Condition Report -->
-            <div class="result-card">
-                <h2 class="card-title">Condition Report</h2>
-                <div class="condition-header">
-                    <div class="card-row">
-                        <span class="card-label">Grade</span>
-                        <span class="card-value" id="r-cond-grade">—</span>
-                    </div>
-                    <div class="card-row">
-                        <span class="card-label">Score</span>
-                        <span class="card-value" id="r-cond-score">—</span>
-                    </div>
-                </div>
-
-                <div id="r-red-flags-section" hidden>
-                    <p class="card-section-title">Red Flags</p>
-                    <ul class="card-list" id="r-red-flags"></ul>
-                </div>
-
-                <div id="r-inconsistencies-section" hidden>
-                    <p class="card-section-title">Text / Photo Inconsistencies</p>
-                    <ul class="card-list" id="r-inconsistencies"></ul>
-                </div>
-
-                <div id="r-restoration-section" hidden>
-                    <p class="card-section-title">Recommended Restoration</p>
-                    <ul class="card-list" id="r-restoration"></ul>
-                </div>
-
-                <p class="card-summary" id="r-cond-summary"></p>
-            </div>
-
-            <!-- Card 3: Market Valuation -->
-            <div class="result-card">
-                <h2 class="card-title">Market Valuation</h2>
-                <p class="valuation-label">Current estimated value</p>
-                <p class="valuation-figure" id="r-valuation-figure">—</p>
-                <div class="valuation-text" id="r-valuation-text"></div>
-            </div>
-
-            <!-- Card 4: 3-Year Appreciation -->
-            <div class="result-card">
-                <h2 class="card-title">3-Year Outlook</h2>
-                <p class="appreciation-badge" id="r-appreciation-badge"></p>
-                <div class="card-row" style="margin-top: 12px;">
-                    <span class="card-label">Model confidence</span>
-                    <span class="card-value" id="r-confidence">—</span>
-                </div>
-            </div>
-
-        </div><!-- /results -->
-    </div><!-- /container -->
-
-    <footer class="site-footer">
-        <p>
-            &copy; 2026 Nadra Qamaria
-            &nbsp;&middot;&nbsp;
-            <a href="https://github.com/petpeevephobia" target="_blank" rel="noopener">GitHub</a>
-            &nbsp;&middot;&nbsp;
-            <a href="https://www.linkedin.com/in/nadraqamaria/" target="_blank" rel="noopener">LinkedIn</a>
-            &nbsp;&middot;&nbsp;
-            <button class="footer-link" id="openPrivacy">Privacy Policy</button>
-            &nbsp;&middot;&nbsp;
-            <button class="footer-link" id="openTerms">Terms &amp; Conditions</button>
-        </p>
-    </footer>
-
-    <!-- Privacy Policy modal -->
-    <div class="modal-overlay" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
-        <div class="modal">
-            <button class="modal-close" aria-label="Close">&times;</button>
-            <h2 id="privacyTitle">Privacy Policy</h2>
-            <div class="modal-body">
-                <p><strong>Last updated: April 2026</strong></p>
-                <p>PorscheLens is a personal portfolio project. This policy explains what data is processed when you use the app.</p>
-
-                <h3>What we process</h3>
-                <ul>
-                    <li><strong>Uploaded images</strong> — the photo you upload is sent to our server solely to run the analysis pipeline. It is saved to a temporary file, processed, and deleted immediately after the request completes.</li>
-                    <li><strong>Optional text inputs</strong> — seller notes, mileage, and asking price you enter are used only within the same request and are not stored.</li>
-                </ul>
-
-                <h3>Third-party services</h3>
-                <ul>
-                    <li><strong>Google Gemini API</strong> — your uploaded image and optional seller text are sent to Google's Gemini API to generate a condition report and valuation. Google's <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> applies to this data.</li>
-                </ul>
-
-                <h3>Data retention</h3>
-                <p>No personal data, images, or inputs are stored on our servers beyond the duration of a single analysis request.</p>
-
-                <h3>Cookies</h3>
-                <p>This app does not use cookies or any tracking technologies.</p>
-
-                <h3>Contact</h3>
-                <p>Questions? Reach out via <a href="mailto:qamaria.mdsah@gmail.com">qamaria.mdsah@gmail.com</a> or connect with me on <a href="https://www.linkedin.com/in/nadraqamaria/" target="_blank" rel="noopener">LinkedIn</a>.</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Terms & Conditions modal -->
-    <div class="modal-overlay" id="termsModal" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
-        <div class="modal">
-            <button class="modal-close" aria-label="Close">&times;</button>
-            <h2 id="termsTitle">Terms &amp; Conditions</h2>
-            <div class="modal-body">
-                <p><strong>Last updated: April 2026</strong></p>
-                <p>By using PorscheLens you agree to these terms. If you do not agree, please do not use the app.</p>
-
-                <h3>Nature of the service</h3>
-                <p>PorscheLens is a personal portfolio project and is provided for informational and demonstration purposes only. All outputs, condition reports, valuations, and appreciation predictions, are generated by AI models and are <strong>not financial or professional advice</strong>.</p>
-
-                <h3>No warranty</h3>
-                <p>The service is provided "as is" without warranty of any kind. Valuations and predictions may be inaccurate. Do not rely on them for purchasing, selling, or investment decisions.</p>
-
-                <h3>Acceptable use</h3>
-                <ul>
-                    <li>You must only upload images you own or have rights to share.</li>
-                    <li>You must not upload unlawful, harmful, or deceptive content.</li>
-                    <li>You must not attempt to reverse-engineer, overload, or misuse the service.</li>
-                </ul>
-
-                <h3>Limitation of liability</h3>
-                <p>To the maximum extent permitted by law, the creator of PorscheLens is not liable for any loss or damage arising from your use of the service.</p>
-
-                <h3>Changes</h3>
-                <p>These terms may be updated at any time. Continued use of the app constitutes acceptance of the current terms.</p>
-
-                <h3>Contact</h3>
-                <p>Questions? Reach out via <a href="mailto:qamaria.mdsah@gmail.com">qamaria.mdsah@gmail.com</a> or connect with me on <a href="https://www.linkedin.com/in/nadraqamaria/" target="_blank" rel="noopener">LinkedIn</a>.</p>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // #region agent log
-        const _dl = (msg, data, hyp) => fetch('/debug-log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId:'8147b6', location:'index.html', message:msg, data, hypothesisId:hyp, timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-
-        const uploadBox    = document.getElementById('uploadBox');
-        const uploadBtn    = document.getElementById('uploadBtn');
-        const uploadPrompt = document.getElementById('uploadPrompt');
-        const imageInput   = document.getElementById('imageInput');
-        const imagePreview = document.getElementById('imagePreview');
-        const analyseBtn        = document.getElementById('analyseBtn');
-        const reuploadBtn       = document.getElementById('reuploadBtn');
-        const errorMsg          = document.getElementById('errorMsg');
-        const results           = document.getElementById('results');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressFill      = document.getElementById('progressFill');
-        const progressLabel     = document.getElementById('progressLabel');
-
-        // ── Image selection ────────────────────────────────────────────────
-        uploadBtn.addEventListener('click',    () => imageInput.click());
-        reuploadBtn.addEventListener('click',  () => imageInput.click());
-
-        uploadBox.addEventListener('dragover', e => {
-            e.preventDefault();
-            uploadBox.classList.add('drag-over');
-        });
-        uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('drag-over'));
-        uploadBox.addEventListener('drop', e => {
-            e.preventDefault();
-            uploadBox.classList.remove('drag-over');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                setImage(file);
-            }
-        });
-
-        imageInput.addEventListener('change', () => {
-            if (imageInput.files[0]) setImage(imageInput.files[0]);
-        });
-
-        function setImage(file) {
-            const reader = new FileReader();
-            reader.onload = e => {
-                imagePreview.src = e.target.result;
-                imagePreview.hidden = false;
-                uploadPrompt.hidden = true;
-                uploadBox.classList.add('has-image');
-                reuploadBtn.hidden = false;
-            };
-            reader.readAsDataURL(file);
-            analyseBtn.disabled = false;
-        }
-
-        // ── Analysis ───────────────────────────────────────────────────────
-        analyseBtn.addEventListener('click', runAnalysis);
-
-        const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-        const MAX_IMAGE_BYTES     = 20 * 1024 * 1024; // 20 MB
-        const MAX_TEXT_LENGTH     = 5000;
-        const MAX_PRICE           = 10_000_000;
-        const MAX_MILEAGE         = 10_000_000;
-
-        async function runAnalysis() {
-            const file = imageInput.files[0];
-            if (!file) return;
-
-            // ── Client-side validation ─────────────────────────────────────
-            if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-                showError('Please upload a JPEG, PNG, WebP, or GIF image.');
-                return;
-            }
-            if (file.size > MAX_IMAGE_BYTES) {
-                showError('Image must be smaller than 20 MB.');
-                return;
-            }
-
-            const sellerTextRaw  = document.getElementById('sellerText').value;
-            const mileageRaw     = document.getElementById('mileage').value.trim();
-            const askingPriceRaw = document.getElementById('askingPrice').value.trim();
-
-            if (sellerTextRaw.length > MAX_TEXT_LENGTH) {
-                showError(`Seller notes must be under ${MAX_TEXT_LENGTH.toLocaleString()} characters.`);
-                return;
-            }
-
-            if (mileageRaw !== '') {
-                const miles = Number(mileageRaw);
-                if (!Number.isFinite(miles) || miles < 0 || miles > MAX_MILEAGE) {
-                    showError('Mileage must be a positive number under 10,000,000.');
-                    return;
-                }
-            }
-
-            if (askingPriceRaw !== '') {
-                const price = Number(askingPriceRaw);
-                if (!Number.isFinite(price) || price < 0 || price > MAX_PRICE) {
-                    showError('Asking price must be a positive number under $10,000,000.');
-                    return;
-                }
-            }
-            // ── End validation ─────────────────────────────────────────────
-
-            setLoading(true);
-            results.hidden  = true;
-            errorMsg.hidden = true;
-            setProgress(0, '');
-
-            const form = new FormData();
-            form.append('image',        file);
-            form.append('seller_text',  sellerTextRaw.slice(0, MAX_TEXT_LENGTH));
-            form.append('mileage',      mileageRaw);
-            form.append('asking_price', askingPriceRaw);
-
-            const controller = new AbortController();
-            const timeoutId  = setTimeout(() => controller.abort(), 3 * 60 * 1000);
-
-            // #region agent log
-            _dl('fetch starting', {containerHidden: progressContainer.hidden, containerInDOM: !!progressContainer}, 'H-D');
-            // #endregion
-
-            try {
-                const resp = await fetch('/analyze', {
-                    method: 'POST',
-                    body: form,
-                    signal: controller.signal,
-                });
-
-                // #region agent log
-                _dl('response received', {ok: resp.ok, status: resp.status, bodyIsNull: resp.body === null, bodyType: typeof resp.body}, 'H-B');
-                // #endregion
-
-                if (!resp.ok) {
-                    const data = await resp.json();
-                    showError(data.error || 'Analysis failed. Please try again.');
-                    return;
-                }
-
-                const reader  = resp.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer    = '';
-                let readCount = 0;
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    readCount++;
-                    // #region agent log
-                    _dl('reader.read chunk', {readCount, done, byteLength: value ? value.byteLength : 0, preview: value ? new TextDecoder().decode(value).slice(0, 150) : '(done)'}, 'H-A H-C');
-                    // #endregion
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const chunks = buffer.split('\n\n');
-                    buffer = chunks.pop();
-
-                    for (const chunk of chunks) {
-                        if (!chunk.startsWith('data: ')) continue;
-                        const event = JSON.parse(chunk.slice(6));
-
-                        // #region agent log
-                        _dl('setProgress called', {step: event.step, progress: event.progress, label: event.label}, 'H-C H-D');
-                        // #endregion
-
-                        if (event.step === 'error') {
-                            showError(event.error || 'Analysis failed. Please try again.');
-                            return;
-                        }
-
-                        setProgress(event.progress, event.label);
-
-                        if (event.step === 'done') {
-                            clearTimeout(timeoutId);
-                            renderResults(event.result);
-                            results.hidden = false;
-                            results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                    }
-                }
-            } catch (err) {
-                if (err.name === 'AbortError') {
-                    showError('Analysis timed out — the server took too long to respond.');
-                } else {
-                    showError('Could not reach the server. Is the app running?');
-                }
-            } finally {
-                clearTimeout(timeoutId);
-                setLoading(false);
-            }
-        }
-
-        function setLoading(on) {
-            analyseBtn.disabled = on;
-            progressContainer.hidden = !on;
-            if (!on) setProgress(0, '');
-        }
-
-        function setProgress(pct, label) {
-            progressFill.style.width  = `${pct}%`;
-            progressLabel.textContent = label;
-            // #region agent log
-            requestAnimationFrame(() => {
-                _dl('setProgress RAF dims', {
-                    pct,
-                    fillStyleWidth: progressFill.style.width,
-                    fillOffsetWidth: progressFill.offsetWidth,
-                    fillOffsetHeight: progressFill.offsetHeight,
-                    fillClientHeight: progressFill.clientHeight,
-                    trackOffsetHeight: progressFill.parentElement ? progressFill.parentElement.offsetHeight : 'N/A',
-                    containerOffsetHeight: progressContainer.offsetHeight,
-                    containerDisplay: getComputedStyle(progressContainer).display,
-                    fillDisplay: getComputedStyle(progressFill).display,
-                    fillBg: getComputedStyle(progressFill).backgroundColor,
-                }, 'H-E H-F H-G');
-            });
-            // #endregion
-        }
-
-        function showError(msg) {
-            errorMsg.textContent = msg;
-            errorMsg.hidden = false;
-        }
-
-        // ── Result rendering ───────────────────────────────────────────────
-        function renderResults(d) {
-            const v  = d.vehicle_info;
-            const cr = d.condition_report;
-            const ap = d.appreciation_prediction;
-
-            // Card 1 — Vehicle
-            setText('r-model',      `Porsche ${v.model_type}`);
-            setText('r-year',       v.model_year ?? '—');
-            setText('r-condition',  v.condition ?? '—');
-            setText('r-mileage',    v.mileage ? `${v.mileage.toLocaleString()} mi` : '—');
-            setText('r-hist-price', d.price_3_years_ago
-                ? `$${Math.round(d.price_3_years_ago).toLocaleString()} (3 yrs ago)`
-                : 'Insufficient data');
-
-            // Card 2 — Condition
-            setText('r-cond-grade', cr.overall_condition_grade ?? '—');
-            setText('r-cond-score', cr.condition_score != null
-                ? `${cr.condition_score} / 10` : '—');
-
-            renderList('r-red-flags', 'r-red-flags-section',
-                (cr.red_flags || []).map(f => f));
-
-            renderList('r-inconsistencies', 'r-inconsistencies-section',
-                (cr.text_photo_inconsistencies || []).map(
-                    x => `${x.claim_in_text} → ${x.what_photos_show}`));
-
-            renderList('r-restoration', 'r-restoration-section',
-                cr.recommended_restoration_steps || []);
-
-            setText('r-cond-summary', cr.summary || '');
-
-            // Card 3 — Valuation
-            setText('r-valuation-figure',
-                d.current_valuation
-                    ? `$${Math.round(d.current_valuation).toLocaleString()}`
-                    : '—');
-            document.getElementById('r-valuation-text').innerHTML =
-                formatValuationText(d.llm_valuation || '');
-
-            // Card 4 — Appreciation
-            const badge = document.getElementById('r-appreciation-badge');
-            if (ap.will_appreciate) {
-                badge.textContent = '↑ Likely to appreciate';
-                badge.className   = 'appreciation-badge appreciate';
-            } else {
-                badge.textContent = '↓ Likely to depreciate';
-                badge.className   = 'appreciation-badge depreciate';
-            }
-            setText('r-confidence', `${(ap.confidence * 100).toFixed(0)}%`);
-        }
-
-        function setText(id, value) {
-            document.getElementById(id).textContent = value;
-        }
-
-        function renderList(listId, sectionId, items) {
-            const section = document.getElementById(sectionId);
-            const list    = document.getElementById(listId);
-            if (!items || items.length === 0) {
-                section.hidden = true;
-                return;
-            }
-            list.innerHTML = items.map(i => `<li>${escapeHtml(String(i))}</li>`).join('');
-            section.hidden = false;
-        }
-
-        function formatValuationText(raw) {
-            return raw
-                .replace(/^\*{0,2}VALUATION:\*{0,2}.*$/m, '')
-                .replace(/\*+/g, '')
-                .trim()
-                .split('\n')
-                .filter(l => l.trim())
-                .map(l => {
-                    const safe = escapeHtml(l);
-                    return safe
-                        .replace(/^REASONING:\s*/i, '<strong>Reasoning:</strong> ')
-                        .replace(/^FACTORS:\s*/i,   '<strong>Factors:</strong> ');
-                })
-                .map(l => `<p>${l}</p>`)
-                .join('');
-        }
-
-        function escapeHtml(str) {
-            return str
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-        }
-
-        // ── Optional fields toggle ─────────────────────────────────────────
-        const optionalToggle = document.getElementById('optionalToggle');
-        const optionalFields = document.getElementById('optionalFields');
-        const toggleChevron  = document.getElementById('toggleChevron');
-        let optionalOpen = false;
-
-        optionalToggle.addEventListener('click', () => {
-            optionalOpen = !optionalOpen;
-            optionalFields.hidden = !optionalOpen;
-            toggleChevron.style.transform = optionalOpen ? 'rotate(180deg)' : '';
-            optionalToggle.querySelector('span').textContent =
-                optionalOpen ? 'Hide optional details' : 'Add optional details';
-        });
-
-        // ── Modals ─────────────────────────────────────────────────────────
-        function openModal(modal) {
-            modal.hidden = false;
-            requestAnimationFrame(() => modal.classList.add('is-open'));
-            document.body.style.overflow = 'hidden';
-            modal.querySelector('.modal-close').focus();
-        }
-
-        function closeModal(modal) {
-            modal.classList.remove('is-open');
-            document.body.style.overflow = '';
-            modal.addEventListener('transitionend', () => { modal.hidden = true; }, { once: true });
-        }
-
-        document.querySelectorAll('.modal-overlay').forEach(overlay => {
-            overlay.addEventListener('click', e => {
-                if (e.target === overlay) closeModal(overlay);
-            });
-            overlay.querySelector('.modal-close').addEventListener('click', () => closeModal(overlay));
-        });
-
-        document.getElementById('openPrivacy').addEventListener('click', () =>
-            openModal(document.getElementById('privacyModal')));
-        document.getElementById('openTerms').addEventListener('click', () =>
-            openModal(document.getElementById('termsModal')));
-
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') {
-                document.querySelectorAll('.modal-overlay:not([hidden])').forEach(closeModal);
-            }
-        });
-    </script>
-</body>
-</html>
-````
-
-## File: .gitignore
-````
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Data files (too large for git)
-project/data/
-_copy-me/
-
-# Log files
-*.log
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment variables
-.env
-*.json
-!package*.json
-
-
-# Google Sheets credentials
-*.json
-!package*.json
-````
-
-## File: app.py
+## File: config.py
 ````python
+"""Configuration settings for the Porsche scraper."""
 import os
-import sys
-import re
-import json
-import pickle
-import tempfile
-
-import numpy as np
-import pandas as pd
-import torch
-import clip
-from collections import Counter
-from PIL import Image
-
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
-from sentence_transformers import SentenceTransformer
-from qdrant_client import QdrantClient
-import google.genai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
-ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(ROOT, 'project', 'data')
+# Gemini Configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 
-# #region agent log
-_dbg_pkl_m = os.path.join(DATA, 'porsche_model.pkl')
-_dbg_pkl_e = os.path.join(DATA, 'porsche_encoder.pkl')
-try:
-    _dbg_pkl_names = [f for f in os.listdir(DATA) if f.endswith('.pkl')]
-except FileNotFoundError:
-    _dbg_pkl_names = ['<DATA_DIR_MISSING>']
-_dbg_payload = {
-    'sessionId': '08e1f3',
-    'runId': 'pre-fix',
-    'hypothesisId': 'H1',
-    'location': 'app.py:after_DATA',
-    'message': 'paths and pickle presence',
-    'data': {
-        'ROOT': ROOT,
-        'DATA': DATA,
-        'cwd': os.getcwd(),
-        'model_pkl_exists': os.path.exists(_dbg_pkl_m),
-        'encoder_pkl_exists': os.path.exists(_dbg_pkl_e),
-        'pkl_basenames_in_DATA': _dbg_pkl_names,
-        'hypothesis_notes': 'H1=artifacts never built; H2=wrong ROOT/DATA; H3=rename mismatch; H4=ignored/gitignored',
-    },
-    'timestamp': int(__import__('time').time() * 1000),
+# CSV Data Paths (relative to repo root: project/data/csv/)
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA_CSV_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "csv", "porsche_data.csv")
+YEARS_AGO_CSV_PATH = os.path.join(_PROJECT_ROOT, "project", "data", "csv", "years_ago.csv")
+
+# Column names for the main data CSV
+COLUMNS = ["model_year", "model_type", "mileage", "condition", "price_now", "price_3_years_ago", "appreciated", "source"]
+
+# Column names for the years_ago CSV (historical 2020-2022 listings)
+YEARS_AGO_COLUMNS = ["model_year", "model_type", "mileage", "condition", "sale_price", "sale_date", "source"]
+
+# Result card visibility
+# Toggle which of the 4 result cards are computed and shown. Applies globally.
+DISPLAY_CARDS = {
+    "vehicle_info":     True,   # Card 1: Vehicle Detected
+    "condition_report": False,   # Card 2: Condition Report
+    "valuation":        True,   # Card 3: Market Valuation
+    "appreciation":     True,   # Card 4: 3-Year Outlook
+    "manufacturing_history": True,   # Card 5: Manufacturing History
 }
-try:
-    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f:
-        _dbg_f.write(json.dumps(_dbg_payload) + '\n')
-except OSError:
-    pass
-# #endregion
-
-_missing_required = [p for p in (_dbg_pkl_m, _dbg_pkl_e) if not os.path.exists(p)]
-if _missing_required:
-    # #region agent log
-    _dbg_miss = {
-        'sessionId': '08e1f3',
-        'runId': 'post-fix',
-        'hypothesisId': 'VERIFY',
-        'location': 'app.py:missing_required_pkl',
-        'message': 'fail-fast exit before heavy model load',
-        'data': {'missing_paths': _missing_required},
-        'timestamp': int(__import__('time').time() * 1000),
-    }
-    try:
-        with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fm:
-            _dbg_fm.write(json.dumps(_dbg_miss) + '\n')
-    except OSError:
-        pass
-    # #endregion
-    print('\nMissing required trained model files:')
-    for _p in _missing_required:
-        print(f'  - {_p}')
-    print(
-        '\nGenerate them by running `project/notebooks/02_preprocessing_and_training.ipynb` '
-        '(pickle outputs go under project/data/). See PORTABILITY.md.\n'
-    )
-    sys.exit(1)
-
-# #region agent log
-_dbg_ok = {
-    'sessionId': '08e1f3',
-    'runId': 'post-fix',
-    'hypothesisId': 'VERIFY',
-    'location': 'app.py:required_pkl_ok',
-    'message': 'both sklearn pickle paths exist; continuing startup',
-    'data': {'model': _dbg_pkl_m, 'encoder': _dbg_pkl_e},
-    'timestamp': int(__import__('time').time() * 1000),
-}
-try:
-    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fok:
-        _dbg_fok.write(json.dumps(_dbg_ok) + '\n')
-except OSError:
-    pass
-# #endregion
-
-from historical_matcher import HistoricalMatcher
-
-# ── Load all models once at startup ───────────────────────────────────────────
-print('Loading models ...')
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-clip_model, clip_preprocess = clip.load('ViT-B/32', device=device)
-print('  CLIP ready')
-
-text_model = SentenceTransformer('all-MiniLM-L6-v2')
-print('  SentenceTransformer ready')
-
-qdrant = QdrantClient(path=os.path.join(DATA, 'qdrant_db'))
-print('  Qdrant ready')
-
-# #region agent log
-_dbg_open_path = os.path.join(DATA, 'porsche_model.pkl')
-_dbg_payload2 = {
-    'sessionId': '08e1f3',
-    'runId': 'pre-fix',
-    'hypothesisId': 'H2',
-    'location': 'app.py:before_porsche_model_open',
-    'message': 'immediately before model pickle open',
-    'data': {'open_path': _dbg_open_path, 'exists': os.path.exists(_dbg_open_path)},
-    'timestamp': int(__import__('time').time() * 1000),
-}
-try:
-    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f2:
-        _dbg_f2.write(json.dumps(_dbg_payload2) + '\n')
-except OSError:
-    pass
-# #endregion
-
-with open(os.path.join(DATA, 'porsche_model.pkl'), 'rb') as f:
-    appreciation_model = pickle.load(f)
-with open(os.path.join(DATA, 'porsche_encoder.pkl'), 'rb') as f:
-    appreciation_encoder = pickle.load(f)
-print('  sklearn models ready')
-
-historical_matcher = HistoricalMatcher()
-historical_matcher.load_historical_listings_from_csv()
-print('  HistoricalMatcher ready')
-
-GEMINI_MODEL  = os.getenv('GEMINI_MODEL', 'gemini-3.1-flash-lite-preview')
-gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
-print('  Gemini client ready')
-print('All models loaded.\n')
-
-# ── Pipeline functions ─────────────────────────────────────────────────────────
-
-def find_similar_listings(image_path, top_k=10):
-    image = Image.open(image_path).convert('RGB')
-    tensor = clip_preprocess(image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        feats = clip_model.encode_image(tensor)
-        feats = feats / feats.norm(dim=1, keepdim=True)
-
-    results = qdrant.query_points(
-        collection_name='porsche_images',
-        query=feats.cpu().numpy()[0].tolist(),
-        limit=top_k,
-    )
-    return [
-        {
-            'listing_id': r.payload['listing_id'],
-            'model_year':  r.payload['model_year'],
-            'model_type':  r.payload['model_type'],
-            'mileage':     r.payload['mileage'],
-            'condition':   r.payload['condition'],
-            'price_now':   r.payload['price_now'],
-            'source':      r.payload['source'],
-        }
-        for r in results.points
-    ]
-
-
-def extract_vehicle_info(similar_listings):
-    if not similar_listings:
-        return None
-    top5 = similar_listings[:5]
-
-    model_type = Counter(l['model_type'] for l in top5).most_common(1)[0][0]
-    years      = [float(l['model_year']) for l in top5 if pd.notna(l['model_year'])]
-    model_year = int(np.median(years)) if years else None
-    condition  = Counter(l['condition'] for l in top5).most_common(1)[0][0]
-    mileages   = [l['mileage'] for l in top5 if pd.notna(l['mileage'])]
-    mileage    = int(np.median(mileages)) if mileages else None
-
-    return {
-        'model_type':        model_type,
-        'model_year':        model_year,
-        'condition':         condition,
-        'mileage':           mileage,
-        'similar_listings':  similar_listings,
-    }
-
-
-def get_historical_price(vehicle_info):
-    target = {
-        'model_year': str(vehicle_info['model_year']),
-        'model_type': vehicle_info['model_type'],
-        'mileage':    vehicle_info.get('mileage', ''),
-        'condition':  vehicle_info['condition'],
-    }
-    result = historical_matcher.calculate_price_3_years_ago(target)
-    return None if result == 'insufficient_data' else result
-
-
-_CONDITION_PROMPT = """
-You are a certified Porsche pre-purchase inspection specialist with 20+ years of experience.
-Examine every photo of this used Porsche listing carefully.
-
-Seller description:
-\"\"\"
-{seller_text}
-\"\"\"
-
-Return ONLY valid JSON — no markdown fences, no commentary — matching this exact schema:
-{{
-  "overall_condition_grade": "Excellent|Good|Fair|Poor",
-  "condition_score": <float 1.0-10.0>,
-  "paint_and_body": {{
-    "issues_found": [{{"location": "", "severity": "minor|moderate|severe", "description": ""}}],
-    "panel_gaps_even": true,
-    "repaint_evidence": false,
-    "repaint_notes": ""
-  }},
-  "aftermarket_modifications": [{{"item": "", "description": "", "oem_compliant": true}}],
-  "missing_or_damaged_trim": [{{"item": "", "location": "", "severity": ""}}],
-  "interior_condition": {{"grade": "", "issues": []}},
-  "text_photo_inconsistencies": [{{"claim_in_text": "", "what_photos_show": "", "severity": ""}}],
-  "red_flags": [],
-  "recommended_restoration_steps": [],
-  "summary": ""
-}}
-
-Only report issues directly observable in the photos or that contradict the seller text.
-Use empty lists [] for categories with no issues.
-"""
-
-
-def generate_condition_report(image_path, seller_text=''):
-    prompt = _CONDITION_PROMPT.format(
-        seller_text=seller_text.strip() or 'Not provided.'
-    )
-    image = Image.open(image_path).convert('RGB')
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[prompt, image],
-    )
-    raw = response.text.strip()
-    # Strip markdown fences if Gemini adds them despite instructions
-    raw = re.sub(r'^```(?:json)?\s*', '', raw)
-    raw = re.sub(r'\s*```$', '', raw)
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return {
-            'overall_condition_grade': 'Unknown',
-            'condition_score': None,
-            'paint_and_body': {'issues_found': [], 'panel_gaps_even': None,
-                               'repaint_evidence': None, 'repaint_notes': ''},
-            'aftermarket_modifications': [],
-            'missing_or_damaged_trim': [],
-            'interior_condition': {'grade': 'Unknown', 'issues': []},
-            'text_photo_inconsistencies': [],
-            'red_flags': [],
-            'recommended_restoration_steps': [],
-            'summary': raw,  # surface raw text so user sees something
-        }
-
-
-def generate_valuation(image_path, vehicle_info, similar_listings,
-                       price_3_years_ago, current_price=None, user_mileage=None):
-    similar_summary = '\n'.join(
-        f"- {l['model_type']} {l['model_year']} ({l['condition']}, "
-        f"{l['mileage']}mi, USD{int(l['price_now']):,})"
-        for l in similar_listings[:5]
-    )
-    mileage_line = (f"- Mileage: {int(user_mileage):,} mi"
-                    if user_mileage is not None else "")
-    prompt = f"""
-You are an expert Porsche appraiser with 20 years of experience.
-Analyse this Porsche listing and provide a market valuation.
-
-Vehicle Information (from image matching):
-- Model Type: {vehicle_info['model_type']}
-- Model Year: {vehicle_info['model_year']}
-- Condition: {vehicle_info['condition']}
-{mileage_line}
-Similar Historical Listings (from vector search):
-{similar_summary}
-
-Historical Price (3 years ago): {"${:,}".format(price_3_years_ago) if price_3_years_ago else "Unknown"}
-Current Asking Price: {"${:,}".format(int(current_price)) if current_price else "Not provided"}
-
-Analyse the uploaded image, compare with similar listings, and provide:
-1. Estimated Current Market Value (USD)
-2. Brief reasoning (2-3 sentences)
-3. Key factors affecting valuation
-
-Format your response as:
-VALUATION: $X,XXX
-REASONING: [your analysis]
-FACTORS: [key factors]
-"""
-    image = Image.open(image_path).convert('RGB')
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[prompt, image],
-    )
-    return response.text
-
-
-def parse_llm_valuation(text):
-    match = re.search(r'VALUATION:\s*\$?([\d,]+)', text)
-    return float(match.group(1).replace(',', '')) if match else None
-
-
-def predict_appreciation(vehicle_info, current_valuation, price_3_years_ago, user_mileage=None):
-    mileage = user_mileage if user_mileage is not None else vehicle_info.get('mileage')
-    input_df = pd.DataFrame([{
-        'model_year':        vehicle_info['model_year'],
-        'model_type':        vehicle_info['model_type'],
-        'mileage':           mileage,
-        'condition':         vehicle_info['condition'],
-        'price_now':         current_valuation,
-        'price_3_years_ago': price_3_years_ago if price_3_years_ago is not None else 0,
-    }])
-    object_cols = appreciation_encoder.feature_names_in_.tolist()
-    for col in object_cols:
-        input_df[col] = input_df[col].astype(str)
-    encoded = pd.DataFrame(appreciation_encoder.transform(input_df[object_cols]))
-    encoded.index = input_df.index
-    X = pd.concat([input_df.drop(object_cols, axis=1), encoded], axis=1)
-    X.columns = X.columns.astype(str)
-    raw = appreciation_model.predict(X)
-    return {
-        'will_appreciate': bool(int(np.round(raw[0])) == 1),
-        'confidence':      round(float(raw[0]), 2),
-    }
-
-
-def full_pipeline(image_path, seller_text='', current_price=None, user_mileage=None):
-    similar      = find_similar_listings(image_path, top_k=10)
-    vehicle_info = extract_vehicle_info(similar)
-    hist_price   = get_historical_price(vehicle_info)
-
-    condition_report = generate_condition_report(image_path, seller_text)
-    llm_valuation    = generate_valuation(image_path, vehicle_info, similar,
-                                           hist_price, current_price,
-                                           user_mileage=user_mileage)
-    current_val = parse_llm_valuation(llm_valuation)
-    if current_val is None:
-        current_val = current_price or float(
-            np.median([l['price_now'] for l in similar[:5]])
-        )
-
-    appreciation = predict_appreciation(vehicle_info, current_val, hist_price,
-                                        user_mileage=user_mileage)
-
-    # Remove nested similar_listings from vehicle_info to keep response clean
-    vehicle_info_clean = {k: v for k, v in vehicle_info.items()
-                          if k != 'similar_listings'}
-
-    return {
-        'vehicle_info':          vehicle_info_clean,
-        'price_3_years_ago':     hist_price,
-        'condition_report':      condition_report,
-        'llm_valuation':         llm_valuation,
-        'current_valuation':     current_val,
-        'appreciation_prediction': appreciation,
-    }
-
-
-# ── Debug logging helper ───────────────────────────────────────────────────────
-import time as _time
-
-_DBG_LOG = os.path.join(ROOT, 'debug-8147b6.log')
-
-def _dbg(msg, data=None, hypothesis=''):
-    entry = json.dumps({'sessionId':'8147b6','timestamp':int(_time.time()*1000),
-                        'location':'app.py','message':msg,'data':data or {},
-                        'hypothesisId':hypothesis})
-    with open(_DBG_LOG, 'a') as _f:
-        _f.write(entry + '\n')
-
-# ── Flask routes ───────────────────────────────────────────────────────────────
-app = Flask(__name__)
-
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-
-@app.route('/debug-log', methods=['POST'])
-def debug_log():
-    entry = request.get_json(silent=True) or {}
-    with open(_DBG_LOG, 'a') as f:
-        f.write(json.dumps(entry) + '\n')
-    return '', 204
-
-
-def _sse(payload: dict) -> str:
-    return f"data: {json.dumps(payload)}\n\n"
-
-
-_ALLOWED_MIMETYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
-_MAGIC_BYTES = {
-    b'\xff\xd8\xff':      'image/jpeg',
-    b'\x89PNG\r\n\x1a\n': 'image/png',
-    b'RIFF':              'image/webp',  # checked further below
-    b'GIF87a':            'image/gif',
-    b'GIF89a':            'image/gif',
-}
-_MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
-_MAX_TEXT_LEN    = 5_000
-_MAX_PRICE       = 10_000_000
-_MAX_MILEAGE     = 10_000_000
-
-
-def _sniff_mimetype(header: bytes) -> str | None:
-    """Return MIME type from the first 12 bytes, or None if unrecognised."""
-    for magic, mime in _MAGIC_BYTES.items():
-        if header[:len(magic)] == magic:
-            if mime == 'image/webp' and header[8:12] != b'WEBP':
-                return None
-            return mime
-    return None
-
-
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    if 'image' not in request.files or request.files['image'].filename == '':
-        return jsonify({'error': 'No image provided.'}), 400
-
-    image_file = request.files['image']
-
-    # ── Image validation ──────────────────────────────────────────────────────
-    header = image_file.read(12)
-    image_file.seek(0)
-    detected_mime = _sniff_mimetype(header)
-    if detected_mime not in _ALLOWED_MIMETYPES:
-        return jsonify({'error': 'Unsupported image type. Upload a JPEG, PNG, WebP, or GIF.'}), 415
-
-    image_file.seek(0, 2)
-    file_size = image_file.tell()
-    image_file.seek(0)
-    if file_size > _MAX_IMAGE_BYTES:
-        return jsonify({'error': 'Image exceeds the 20 MB size limit.'}), 413
-
-    # ── Text / numeric field validation ───────────────────────────────────────
-    seller_text = request.form.get('seller_text', '')[:_MAX_TEXT_LEN]
-
-    def _parse_positive_float(raw, max_val):
-        raw = (raw or '').strip()
-        if not raw:
-            return None
-        try:
-            val = float(raw)
-        except ValueError:
-            return False
-        if val < 0 or val > max_val or not (val == val):  # NaN guard
-            return False
-        return val
-
-    asking_price = _parse_positive_float(request.form.get('asking_price'), _MAX_PRICE)
-    user_mileage = _parse_positive_float(request.form.get('mileage'),      _MAX_MILEAGE)
-
-    if asking_price is False:
-        return jsonify({'error': 'Invalid asking price.'}), 400
-    if user_mileage is False:
-        return jsonify({'error': 'Invalid mileage value.'}), 400
-
-    # ── Save to temp file ─────────────────────────────────────────────────────
-    _MIME_TO_EXT = {'image/jpeg': '.jpg', 'image/png': '.png',
-                    'image/webp': '.webp', 'image/gif': '.gif'}
-    suffix = _MIME_TO_EXT[detected_mime]
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    image_file.save(tmp.name)
-    tmp.close()
-
-    @stream_with_context
-    def generate():
-        try:
-            _dbg('yield scanning', hypothesis='H-A')
-            chunk = _sse({'step': 'scanning', 'label': 'Scanning image…', 'progress': 10})
-            _dbg('about to yield scanning chunk', {'chunk': chunk}, hypothesis='H-A')
-            yield chunk
-            _dbg('yielded scanning — now running find_similar_listings', hypothesis='H-A')
-            similar = find_similar_listings(tmp.name, top_k=10)
-
-            _dbg('yield identifying', hypothesis='H-A')
-            yield _sse({'step': 'identifying', 'label': 'Identifying vehicle…', 'progress': 25})
-            vehicle_info = extract_vehicle_info(similar)
-
-            _dbg('yield history', hypothesis='H-A')
-            yield _sse({'step': 'history', 'label': 'Checking market history…', 'progress': 40})
-            hist_price = get_historical_price(vehicle_info)
-
-            _dbg('yield condition', hypothesis='H-A')
-            yield _sse({'step': 'condition', 'label': 'Analysing condition…', 'progress': 55})
-            condition_report = generate_condition_report(tmp.name, seller_text)
-
-            _dbg('yield valuation', hypothesis='H-A')
-            yield _sse({'step': 'valuation', 'label': 'Valuing the car…', 'progress': 75})
-            llm_valuation = generate_valuation(tmp.name, vehicle_info, similar,
-                                               hist_price, asking_price,
-                                               user_mileage=user_mileage)
-            current_val = parse_llm_valuation(llm_valuation)
-            if current_val is None:
-                current_val = asking_price or float(
-                    np.median([l['price_now'] for l in similar[:5]])
-                )
-
-            _dbg('yield predicting', hypothesis='H-A')
-            yield _sse({'step': 'predicting', 'label': 'Predicting appreciation…', 'progress': 90})
-            appreciation = predict_appreciation(vehicle_info, current_val, hist_price,
-                                                user_mileage=user_mileage)
-
-            vehicle_info_clean = {k: v for k, v in vehicle_info.items()
-                                  if k != 'similar_listings'}
-            result = {
-                'vehicle_info':            vehicle_info_clean,
-                'price_3_years_ago':       hist_price,
-                'condition_report':        condition_report,
-                'llm_valuation':           llm_valuation,
-                'current_valuation':       current_val,
-                'appreciation_prediction': appreciation,
-            }
-            _dbg('yield done', hypothesis='H-A')
-            yield _sse({'step': 'done', 'label': 'Done', 'progress': 100, 'result': result})
-            _dbg('generator finished normally', hypothesis='H-A')
-
-        except Exception as e:
-            _dbg('generator exception', {'error': str(e)}, hypothesis='H-A')
-            yield _sse({'step': 'error', 'error': str(e)})
-        finally:
-            try:
-                os.unlink(tmp.name)
-            except OSError:
-                pass
-
-    return Response(
-        generate(),
-        mimetype='text/event-stream',
-        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
-    )
-
-
-if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=8080, use_reloader=False, threaded=True)
 ````
 
 ## File: README.md
@@ -6177,6 +5005,1254 @@ porsche-appreciation-predictor/
   "nbformat": 4,
   "nbformat_minor": 5
 }
+````
+
+## File: .gitignore
+````
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Data files (too large for git)
+project/data/
+_copy-me/
+
+# Log files
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+*.json
+!package*.json
+
+
+# Google Sheets credentials
+*.json
+!package*.json
+````
+
+## File: templates/index.html
+````html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Porsche Appreciation Predictor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav>
+        <h1 class="logo">PorscheLens</h1>
+    </nav>
+
+    <div class="container">
+        <h1>Is this car worth keeping?</h1>
+
+        <!-- Upload box -->
+        <div class="upload-box" id="uploadBox">
+            <div id="uploadPrompt">
+                <p class="upload-hint">Drop an image or click to browse</p>
+                <button class="pri-btn" type="button" id="uploadBtn">Upload image</button>
+            </div>
+            <img id="imagePreview" class="image-preview" alt="Selected listing photo" hidden>
+        </div>
+        <input type="file" id="imageInput" accept="image/*" hidden>
+        <button class="reupload-link" id="reuploadBtn" type="button" hidden>Change photo</button>
+
+        <!-- Optional inputs (collapsible) -->
+        <button class="optional-toggle" id="optionalToggle" type="button">
+            <span>Add optional details</span>
+            <svg class="toggle-chevron" id="toggleChevron" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+
+        <div class="optional-fields" id="optionalFields" hidden>
+            <textarea
+                id="sellerText"
+                class="text-input"
+                placeholder="Notes — improves condition analysis"
+                rows="4"
+            ></textarea>
+
+            <input
+                type="number"
+                id="mileage"
+                class="price-input"
+                placeholder="Mileage (miles)"
+                min="0"
+            >
+
+            <input
+                type="number"
+                id="askingPrice"
+                class="price-input"
+                placeholder="Asking price (USD)"
+                min="0"
+            >
+        </div>
+
+        <!-- Analyse button -->
+        <button class="pri-btn analyse-btn" id="analyseBtn" type="button" disabled>
+            Analyse
+        </button>
+
+        <!-- Progress bar -->
+        <div id="progressContainer" hidden>
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p class="progress-label" id="progressLabel"></p>
+        </div>
+
+        <!-- Error message -->
+        <p class="error-msg" id="errorMsg" hidden></p>
+
+        <!-- Results — hidden until the API responds -->
+        <div class="results" id="results" hidden>
+
+            <!-- Card 1: Vehicle Detected -->
+            {% if card_flags.vehicle_info %}
+            <div class="result-card">
+                <h2 class="card-title">Vehicle Detected</h2>
+                <div class="card-row">
+                    <span class="card-label">Model</span>
+                    <span class="card-value" id="r-model">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Year</span>
+                    <span class="card-value" id="r-year">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Condition</span>
+                    <span class="card-value" id="r-condition">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Mileage</span>
+                    <span class="card-value" id="r-mileage">—</span>
+                </div>
+                <div class="card-row">
+                    <span class="card-label">Historical price</span>
+                    <span class="card-value" id="r-hist-price">—</span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if card_flags.manufacturing_history %}
+            <div class="result-card">
+                <h2 class="card-title">Manufacturing History</h2>
+                <p class="card-summary" id="r-mfg-history">—</p>
+            </div>
+            {% endif %}
+
+            <!-- Card 2: Condition Report -->
+            {% if card_flags.condition_report %}
+            <div class="result-card">
+                <h2 class="card-title">Condition Report</h2>
+                <div class="condition-header">
+                    <div class="card-row">
+                        <span class="card-label">Grade</span>
+                        <span class="card-value" id="r-cond-grade">—</span>
+                    </div>
+                    <div class="card-row">
+                        <span class="card-label">Score</span>
+                        <span class="card-value" id="r-cond-score">—</span>
+                    </div>
+                </div>
+
+                <div id="r-red-flags-section" hidden>
+                    <p class="card-section-title">Red Flags</p>
+                    <ul class="card-list" id="r-red-flags"></ul>
+                </div>
+
+                <div id="r-inconsistencies-section" hidden>
+                    <p class="card-section-title">Text / Photo Inconsistencies</p>
+                    <ul class="card-list" id="r-inconsistencies"></ul>
+                </div>
+
+                <div id="r-restoration-section" hidden>
+                    <p class="card-section-title">Recommended Restoration</p>
+                    <ul class="card-list" id="r-restoration"></ul>
+                </div>
+
+                <p class="card-summary" id="r-cond-summary"></p>
+            </div>
+            {% endif %}
+
+            <!-- Card 3: Market Valuation -->
+            {% if card_flags.valuation %}
+            <div class="result-card">
+                <h2 class="card-title">Market Valuation</h2>
+                <p class="valuation-label">Current estimated value</p>
+                <p class="valuation-figure" id="r-valuation-figure">—</p>
+                <div class="valuation-text" id="r-valuation-text"></div>
+            </div>
+            {% endif %}
+
+            <!-- Card 4: 3-Year Appreciation -->
+            {% if card_flags.appreciation %}
+            <div class="result-card">
+                <h2 class="card-title">3-Year Outlook</h2>
+                <p class="appreciation-badge" id="r-appreciation-badge"></p>
+                <div class="card-row" style="margin-top: 12px;">
+                    <span class="card-label">Model confidence</span>
+                    <span class="card-value" id="r-confidence">—</span>
+                </div>
+            </div>
+            {%  endif %}
+
+        </div><!-- /results -->
+    </div><!-- /container -->
+
+    <footer class="site-footer">
+        <p>
+            &copy; 2026 Nadra Qamaria
+            &nbsp;&middot;&nbsp;
+            <a href="https://github.com/petpeevephobia" target="_blank" rel="noopener">GitHub</a>
+            &nbsp;&middot;&nbsp;
+            <a href="https://www.linkedin.com/in/nadraqamaria/" target="_blank" rel="noopener">LinkedIn</a>
+            &nbsp;&middot;&nbsp;
+            <button class="footer-link" id="openPrivacy">Privacy Policy</button>
+            &nbsp;&middot;&nbsp;
+            <button class="footer-link" id="openTerms">Terms &amp; Conditions</button>
+        </p>
+    </footer>
+
+    <!-- Privacy Policy modal -->
+    <div class="modal-overlay" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <div class="modal">
+            <button class="modal-close" aria-label="Close">&times;</button>
+            <h2 id="privacyTitle">Privacy Policy</h2>
+            <div class="modal-body">
+                <p><strong>Last updated: April 2026</strong></p>
+                <p>PorscheLens is a personal portfolio project. This policy explains what data is processed when you use the app.</p>
+
+                <h3>What we process</h3>
+                <ul>
+                    <li><strong>Uploaded images</strong> — the photo you upload is sent to our server solely to run the analysis pipeline. It is saved to a temporary file, processed, and deleted immediately after the request completes.</li>
+                    <li><strong>Optional text inputs</strong> — seller notes, mileage, and asking price you enter are used only within the same request and are not stored.</li>
+                </ul>
+
+                <h3>Third-party services</h3>
+                <ul>
+                    <li><strong>Google Gemini API</strong> — your uploaded image and optional seller text are sent to Google's Gemini API to generate a condition report and valuation. Google's <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> applies to this data.</li>
+                </ul>
+
+                <h3>Data retention</h3>
+                <p>No personal data, images, or inputs are stored on our servers beyond the duration of a single analysis request.</p>
+
+                <h3>Cookies</h3>
+                <p>This app does not use cookies or any tracking technologies.</p>
+
+                <h3>Contact</h3>
+                <p>Questions? Reach out via <a href="mailto:qamaria.mdsah@gmail.com">qamaria.mdsah@gmail.com</a> or connect with me on <a href="https://www.linkedin.com/in/nadraqamaria/" target="_blank" rel="noopener">LinkedIn</a>.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms & Conditions modal -->
+    <div class="modal-overlay" id="termsModal" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+        <div class="modal">
+            <button class="modal-close" aria-label="Close">&times;</button>
+            <h2 id="termsTitle">Terms &amp; Conditions</h2>
+            <div class="modal-body">
+                <p><strong>Last updated: April 2026</strong></p>
+                <p>By using PorscheLens you agree to these terms. If you do not agree, please do not use the app.</p>
+
+                <h3>Nature of the service</h3>
+                <p>PorscheLens is a personal portfolio project and is provided for informational and demonstration purposes only. All outputs, condition reports, valuations, and appreciation predictions, are generated by AI models and are <strong>not financial or professional advice</strong>.</p>
+
+                <h3>No warranty</h3>
+                <p>The service is provided "as is" without warranty of any kind. Valuations and predictions may be inaccurate. Do not rely on them for purchasing, selling, or investment decisions.</p>
+
+                <h3>Acceptable use</h3>
+                <ul>
+                    <li>You must only upload images you own or have rights to share.</li>
+                    <li>You must not upload unlawful, harmful, or deceptive content.</li>
+                    <li>You must not attempt to reverse-engineer, overload, or misuse the service.</li>
+                </ul>
+
+                <h3>Limitation of liability</h3>
+                <p>To the maximum extent permitted by law, the creator of PorscheLens is not liable for any loss or damage arising from your use of the service.</p>
+
+                <h3>Changes</h3>
+                <p>These terms may be updated at any time. Continued use of the app constitutes acceptance of the current terms.</p>
+
+                <h3>Contact</h3>
+                <p>Questions? Reach out via <a href="mailto:qamaria.mdsah@gmail.com">qamaria.mdsah@gmail.com</a> or connect with me on <a href="https://www.linkedin.com/in/nadraqamaria/" target="_blank" rel="noopener">LinkedIn</a>.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // #region agent log
+        // const _dl = (msg, data, hyp) => fetch('/debug-log', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId:'8147b6', location:'index.html', message:msg, data, hypothesisId:hyp, timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+
+        const CARD_FLAGS = {{ card_flags | tojson }};
+        const uploadBox    = document.getElementById('uploadBox');
+        const uploadBtn    = document.getElementById('uploadBtn');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const imageInput   = document.getElementById('imageInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const analyseBtn        = document.getElementById('analyseBtn');
+        const reuploadBtn       = document.getElementById('reuploadBtn');
+        const errorMsg          = document.getElementById('errorMsg');
+        const results           = document.getElementById('results');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill      = document.getElementById('progressFill');
+        const progressLabel     = document.getElementById('progressLabel');
+
+        // ── Image selection ────────────────────────────────────────────────
+        uploadBtn.addEventListener('click',    () => imageInput.click());
+        reuploadBtn.addEventListener('click',  () => imageInput.click());
+
+        uploadBox.addEventListener('dragover', e => {
+            e.preventDefault();
+            uploadBox.classList.add('drag-over');
+        });
+        uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('drag-over'));
+        uploadBox.addEventListener('drop', e => {
+            e.preventDefault();
+            uploadBox.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                setImage(file);
+            }
+        });
+
+        imageInput.addEventListener('change', () => {
+            if (imageInput.files[0]) setImage(imageInput.files[0]);
+        });
+
+        function setImage(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                imagePreview.src = e.target.result;
+                imagePreview.hidden = false;
+                uploadPrompt.hidden = true;
+                uploadBox.classList.add('has-image');
+                reuploadBtn.hidden = false;
+            };
+            reader.readAsDataURL(file);
+            analyseBtn.disabled = false;
+        }
+
+        // ── Analysis ───────────────────────────────────────────────────────
+        analyseBtn.addEventListener('click', runAnalysis);
+
+        const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+        const MAX_IMAGE_BYTES     = 20 * 1024 * 1024; // 20 MB
+        const MAX_TEXT_LENGTH     = 5000;
+        const MAX_PRICE           = 10_000_000;
+        const MAX_MILEAGE         = 10_000_000;
+
+        async function runAnalysis() {
+            const file = imageInput.files[0];
+            if (!file) return;
+
+            // ── Client-side validation ─────────────────────────────────────
+            if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+                showError('Please upload a JPEG, PNG, WebP, or GIF image.');
+                return;
+            }
+            if (file.size > MAX_IMAGE_BYTES) {
+                showError('Image must be smaller than 20 MB.');
+                return;
+            }
+
+            const sellerTextRaw  = document.getElementById('sellerText').value;
+            const mileageRaw     = document.getElementById('mileage').value.trim();
+            const askingPriceRaw = document.getElementById('askingPrice').value.trim();
+
+            if (sellerTextRaw.length > MAX_TEXT_LENGTH) {
+                showError(`Seller notes must be under ${MAX_TEXT_LENGTH.toLocaleString()} characters.`);
+                return;
+            }
+
+            if (mileageRaw !== '') {
+                const miles = Number(mileageRaw);
+                if (!Number.isFinite(miles) || miles < 0 || miles > MAX_MILEAGE) {
+                    showError('Mileage must be a positive number under 10,000,000.');
+                    return;
+                }
+            }
+
+            if (askingPriceRaw !== '') {
+                const price = Number(askingPriceRaw);
+                if (!Number.isFinite(price) || price < 0 || price > MAX_PRICE) {
+                    showError('Asking price must be a positive number under $10,000,000.');
+                    return;
+                }
+            }
+            // ── End validation ─────────────────────────────────────────────
+
+            setLoading(true);
+            results.hidden  = true;
+            errorMsg.hidden = true;
+            setProgress(0, '');
+
+            const form = new FormData();
+            form.append('image',        file);
+            form.append('seller_text',  sellerTextRaw.slice(0, MAX_TEXT_LENGTH));
+            form.append('mileage',      mileageRaw);
+            form.append('asking_price', askingPriceRaw);
+
+            const controller = new AbortController();
+            const timeoutId  = setTimeout(() => controller.abort(), 3 * 60 * 1000);
+
+            // #region agent log
+            // _dl('fetch starting', {containerHidden: progressContainer.hidden, containerInDOM: !!progressContainer}, 'H-D');
+            // #endregion
+
+            try {
+                const resp = await fetch('/analyze', {
+                    method: 'POST',
+                    body: form,
+                    signal: controller.signal,
+                });
+
+                // #region agent log
+                // _dl('response received', {ok: resp.ok, status: resp.status, bodyIsNull: resp.body === null, bodyType: typeof resp.body}, 'H-B');
+                // #endregion
+
+                if (!resp.ok) {
+                    const data = await resp.json();
+                    showError(data.error || 'Analysis failed. Please try again.');
+                    return;
+                }
+
+                const reader  = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer    = '';
+                let readCount = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    readCount++;
+                    // #region agent log
+                    // _dl('reader.read chunk', {readCount, done, byteLength: value ? value.byteLength : 0, preview: value ? new TextDecoder().decode(value).slice(0, 150) : '(done)'}, 'H-A H-C');
+                    // #endregion
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const chunks = buffer.split('\n\n');
+                    buffer = chunks.pop();
+
+                    for (const chunk of chunks) {
+                        if (!chunk.startsWith('data: ')) continue;
+                        const event = JSON.parse(chunk.slice(6));
+
+                        // #region agent log
+                        // _dl('setProgress called', {step: event.step, progress: event.progress, label: event.label}, 'H-C H-D');
+                        // #endregion
+
+                        if (event.step === 'error') {
+                            showError(event.error || 'Analysis failed. Please try again.');
+                            return;
+                        }
+
+                        setProgress(event.progress, event.label);
+
+                        if (event.step === 'done') {
+                            clearTimeout(timeoutId);
+                            renderResults(event.result);
+                            results.hidden = false;
+                            results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('runAnalysis error:', err);   // add this line
+                if (err.name === 'AbortError') {
+                    showError('Analysis timed out — the server took too long to respond.');
+                } else {
+                    showError('Could not reach the server. Is the app running?');
+                }
+            } finally {
+                clearTimeout(timeoutId);
+                setLoading(false);
+            }
+        }
+
+        function setLoading(on) {
+            analyseBtn.disabled = on;
+            progressContainer.hidden = !on;
+            if (!on) setProgress(0, '');
+        }
+
+        function setProgress(pct, label) {
+            progressFill.style.width  = `${pct}%`;
+            progressLabel.textContent = label;
+            // #region agent log
+            requestAnimationFrame(() => {
+                // _dl('setProgress RAF dims', {
+                //     pct,
+                //     fillStyleWidth: progressFill.style.width,
+                //     fillOffsetWidth: progressFill.offsetWidth,
+                //     fillOffsetHeight: progressFill.offsetHeight,
+                //     fillClientHeight: progressFill.clientHeight,
+                //     trackOffsetHeight: progressFill.parentElement ? progressFill.parentElement.offsetHeight : 'N/A',
+                //     containerOffsetHeight: progressContainer.offsetHeight,
+                //     containerDisplay: getComputedStyle(progressContainer).display,
+                //     fillDisplay: getComputedStyle(progressFill).display,
+                //     fillBg: getComputedStyle(progressFill).backgroundColor,
+                // }, 'H-E H-F H-G');
+            });
+            // #endregion
+        }
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.hidden = false;
+        }
+
+        // ── Result rendering ───────────────────────────────────────────────
+        // const CARD_FLAGS = {{ card_flags | tojson }};
+        function renderResults(d) {
+            const v  = d.vehicle_info;
+            const ap = d.appreciation_prediction;
+
+            // Card 1 — Vehicle
+            if (CARD_FLAGS.vehicle_info) {
+                setText('r-model', `Porsche ${v.model_type}`);
+                setText('r-model',      `Porsche ${v.model_type}`);
+                setText('r-year',       v.model_year ?? '—');
+                setText('r-condition',  v.condition ?? '—');
+                setText('r-mileage',    v.mileage ? `${v.mileage.toLocaleString()} mi` : '—');
+                setText('r-hist-price', d.price_3_years_ago
+                    ? `$${Math.round(d.price_3_years_ago).toLocaleString()} (3 yrs ago)`
+                    : 'Insufficient data');
+            }
+
+            if (CARD_FLAGS.manufacturing_history) {
+                setText('r-mfg-history', d.manufacturing_history || '—');
+            }
+
+            // Card 2 — Condition
+            if (CARD_FLAGS.condition_report) {
+                const cr = d.condition_report;
+                setText('r-cond-grade', cr.overall_condition_grade ?? '—');
+                setText('r-cond-score', cr.condition_score != null
+                    ? `${cr.condition_score} / 10` : '—');
+    
+                renderList('r-red-flags', 'r-red-flags-section',
+                    (cr.red_flags || []).map(f => f));
+    
+                renderList('r-inconsistencies', 'r-inconsistencies-section',
+                    (cr.text_photo_inconsistencies || []).map(
+                        x => `${x.claim_in_text} → ${x.what_photos_show}`));
+    
+                renderList('r-restoration', 'r-restoration-section',
+                    cr.recommended_restoration_steps || []);
+    
+                setText('r-cond-summary', cr.summary || '');
+            }
+
+            // Card 3 — Valuation
+            if (CARD_FLAGS.valuation) {
+                setText('r-valuation-figure',
+                    d.current_valuation
+                        ? `$${Math.round(d.current_valuation).toLocaleString()}`
+                        : '—');
+                document.getElementById('r-valuation-text').innerHTML =
+                    formatValuationText(d.llm_valuation || '');
+            }
+
+            // Card 4 — Appreciation
+            if (CARD_FLAGS.appreciation) {
+                const badge = document.getElementById('r-appreciation-badge');
+                if (ap.will_appreciate) {
+                    badge.textContent = '↑ Likely to appreciate';
+                    badge.className   = 'appreciation-badge appreciate';
+                } else {
+                    badge.textContent = '↓ Likely to depreciate';
+                    badge.className   = 'appreciation-badge depreciate';
+                }
+                setText('r-confidence', `${(ap.confidence * 100).toFixed(0)}%`);
+            }
+        }
+
+        function setText(id, value) {
+            // document.getElementById(id).textContent = value;
+            const el = document.getElementById(id);
+            if (!el) {
+                console.error('Missing DOM element for id:', id);
+                return;
+            }
+            el.textContent = value;
+        }
+
+        function renderList(listId, sectionId, items) {
+            const section = document.getElementById(sectionId);
+            const list    = document.getElementById(listId);
+            if (!items || items.length === 0) {
+                section.hidden = true;
+                return;
+            }
+            list.innerHTML = items.map(i => `<li>${escapeHtml(String(i))}</li>`).join('');
+            section.hidden = false;
+        }
+
+        function formatValuationText(raw) {
+            return raw
+                .replace(/^\*{0,2}VALUATION:\*{0,2}.*$/m, '')
+                .replace(/\*+/g, '')
+                .trim()
+                .split('\n')
+                .filter(l => l.trim())
+                .map(l => {
+                    const safe = escapeHtml(l);
+                    return safe
+                        .replace(/^REASONING:\s*/i, '<strong>Reasoning:</strong> ')
+                        .replace(/^FACTORS:\s*/i,   '<strong>Factors:</strong> ');
+                })
+                .map(l => `<p>${l}</p>`)
+                .join('');
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        // ── Optional fields toggle ─────────────────────────────────────────
+        const optionalToggle = document.getElementById('optionalToggle');
+        const optionalFields = document.getElementById('optionalFields');
+        const toggleChevron  = document.getElementById('toggleChevron');
+        let optionalOpen = false;
+
+        optionalToggle.addEventListener('click', () => {
+            optionalOpen = !optionalOpen;
+            optionalFields.hidden = !optionalOpen;
+            toggleChevron.style.transform = optionalOpen ? 'rotate(180deg)' : '';
+            optionalToggle.querySelector('span').textContent =
+                optionalOpen ? 'Hide optional details' : 'Add optional details';
+        });
+
+        // ── Modals ─────────────────────────────────────────────────────────
+        function openModal(modal) {
+            modal.hidden = false;
+            requestAnimationFrame(() => modal.classList.add('is-open'));
+            document.body.style.overflow = 'hidden';
+            modal.querySelector('.modal-close').focus();
+        }
+
+        function closeModal(modal) {
+            modal.classList.remove('is-open');
+            document.body.style.overflow = '';
+            modal.addEventListener('transitionend', () => { modal.hidden = true; }, { once: true });
+        }
+
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', e => {
+                if (e.target === overlay) closeModal(overlay);
+            });
+            overlay.querySelector('.modal-close').addEventListener('click', () => closeModal(overlay));
+        });
+
+        document.getElementById('openPrivacy').addEventListener('click', () =>
+            openModal(document.getElementById('privacyModal')));
+        document.getElementById('openTerms').addEventListener('click', () =>
+            openModal(document.getElementById('termsModal')));
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay:not([hidden])').forEach(closeModal);
+            }
+        });
+    </script>
+</body>
+</html>
+````
+
+## File: app.py
+````python
+import os
+import sys
+import re
+import json
+import pickle
+import tempfile
+
+import numpy as np
+import pandas as pd
+import torch
+import clip
+from collections import Counter
+from PIL import Image
+
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from sentence_transformers import SentenceTransformer
+from qdrant_client import QdrantClient
+import google.genai as genai
+from dotenv import load_dotenv
+
+import config
+from manufacturing_history import MANUFACTURING_HISTORY, DEFAULT_HISTORY
+
+load_dotenv()
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(ROOT, 'project', 'data')
+
+#region agent log
+_dbg_pkl_m = os.path.join(DATA, 'porsche_model.pkl')
+_dbg_pkl_e = os.path.join(DATA, 'porsche_encoder.pkl')
+try:
+    _dbg_pkl_names = [f for f in os.listdir(DATA) if f.endswith('.pkl')]
+except FileNotFoundError:
+    _dbg_pkl_names = ['<DATA_DIR_MISSING>']
+_dbg_payload = {
+    'sessionId': '08e1f3',
+    'runId': 'pre-fix',
+    'hypothesisId': 'H1',
+    'location': 'app.py:after_DATA',
+    'message': 'paths and pickle presence',
+    'data': {
+        'ROOT': ROOT,
+        'DATA': DATA,
+        'cwd': os.getcwd(),
+        'model_pkl_exists': os.path.exists(_dbg_pkl_m),
+        'encoder_pkl_exists': os.path.exists(_dbg_pkl_e),
+        'pkl_basenames_in_DATA': _dbg_pkl_names,
+        'hypothesis_notes': 'H1=artifacts never built; H2=wrong ROOT/DATA; H3=rename mismatch; H4=ignored/gitignored',
+    },
+    'timestamp': int(__import__('time').time() * 1000),
+}
+try:
+    with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f:
+        _dbg_f.write(json.dumps(_dbg_payload) + '\n')
+except OSError:
+    pass
+#endregion
+
+_missing_required = [p for p in (_dbg_pkl_m, _dbg_pkl_e) if not os.path.exists(p)]
+if _missing_required:
+    #region agent log
+    # _dbg_miss = {
+    #     'sessionId': '08e1f3',
+    #     'runId': 'post-fix',
+    #     'hypothesisId': 'VERIFY',
+    #     'location': 'app.py:missing_required_pkl',
+    #     'message': 'fail-fast exit before heavy model load',
+    #     'data': {'missing_paths': _missing_required},
+    #     'timestamp': int(__import__('time').time() * 1000),
+    # }
+    # try:
+    #     with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fm:
+    #         _dbg_fm.write(json.dumps(_dbg_miss) + '\n')
+    # except OSError:
+    #     pass
+    #endregion
+    print('\nMissing required trained model files:')
+    for _p in _missing_required:
+        print(f'  - {_p}')
+    print(
+        '\nGenerate them by running `project/notebooks/02_preprocessing_and_training.ipynb` '
+        '(pickle outputs go under project/data/). See PORTABILITY.md.\n'
+    )
+    sys.exit(1)
+
+#region agent log
+# _dbg_ok = {
+#     'sessionId': '08e1f3',
+#     'runId': 'post-fix',
+#     'hypothesisId': 'VERIFY',
+#     'location': 'app.py:required_pkl_ok',
+#     'message': 'both sklearn pickle paths exist; continuing startup',
+#     'data': {'model': _dbg_pkl_m, 'encoder': _dbg_pkl_e},
+#     'timestamp': int(__import__('time').time() * 1000),
+# }
+# try:
+#     with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_fok:
+#         _dbg_fok.write(json.dumps(_dbg_ok) + '\n')
+# except OSError:
+#     pass
+#endregion
+
+from historical_matcher import HistoricalMatcher
+
+# ── Load all models once at startup ───────────────────────────────────────────
+print('Loading models ...')
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+clip_model, clip_preprocess = clip.load('ViT-B/32', device=device)
+print('  CLIP ready')
+
+text_model = SentenceTransformer('all-MiniLM-L6-v2')
+print('  SentenceTransformer ready')
+
+qdrant = QdrantClient(path=os.path.join(DATA, 'qdrant_db'))
+print('  Qdrant ready')
+
+#region agent log
+# _dbg_open_path = os.path.join(DATA, 'porsche_model.pkl')
+# _dbg_payload2 = {
+#     'sessionId': '08e1f3',
+#     'runId': 'pre-fix',
+#     'hypothesisId': 'H2',
+#     'location': 'app.py:before_porsche_model_open',
+#     'message': 'immediately before model pickle open',
+#     'data': {'open_path': _dbg_open_path, 'exists': os.path.exists(_dbg_open_path)},
+#     'timestamp': int(__import__('time').time() * 1000),
+# }
+# try:
+#     with open(os.path.join(ROOT, 'debug-08e1f3.log'), 'a', encoding='utf-8') as _dbg_f2:
+#         _dbg_f2.write(json.dumps(_dbg_payload2) + '\n')
+# except OSError:
+#     pass
+#endregion
+
+with open(os.path.join(DATA, 'porsche_model.pkl'), 'rb') as f:
+    appreciation_model = pickle.load(f)
+with open(os.path.join(DATA, 'porsche_encoder.pkl'), 'rb') as f:
+    appreciation_encoder = pickle.load(f)
+print('  sklearn models ready')
+
+historical_matcher = HistoricalMatcher()
+historical_matcher.load_historical_listings_from_csv()
+print('  HistoricalMatcher ready')
+
+GEMINI_MODEL  = os.getenv('GEMINI_MODEL', 'gemini-3.1-flash-lite-preview')
+gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+print('  Gemini client ready')
+print('All models loaded.\n')
+
+# ── Pipeline functions ─────────────────────────────────────────────────────────
+
+def find_similar_listings(image_path, top_k=10):
+    image = Image.open(image_path).convert('RGB')
+    tensor = clip_preprocess(image).unsqueeze(0).to(device)
+    with torch.no_grad():
+        feats = clip_model.encode_image(tensor)
+        feats = feats / feats.norm(dim=1, keepdim=True)
+
+    results = qdrant.query_points(
+        collection_name='porsche_images',
+        query=feats.cpu().numpy()[0].tolist(),
+        limit=top_k,
+    )
+    return [
+        {
+            'listing_id': r.payload['listing_id'],
+            'model_year':  r.payload['model_year'],
+            'model_type':  r.payload['model_type'],
+            'mileage':     r.payload['mileage'],
+            'condition':   r.payload['condition'],
+            'price_now':   r.payload['price_now'],
+            'source':      r.payload['source'],
+        }
+        for r in results.points
+    ]
+
+
+def extract_vehicle_info(similar_listings):
+    if not similar_listings:
+        return None
+    top5 = similar_listings[:5]
+
+    model_type = Counter(l['model_type'] for l in top5).most_common(1)[0][0]
+    years      = [float(l['model_year']) for l in top5 if pd.notna(l['model_year'])]
+    model_year = int(np.median(years)) if years else None
+    condition  = Counter(l['condition'] for l in top5).most_common(1)[0][0]
+    mileages   = [l['mileage'] for l in top5 if pd.notna(l['mileage'])]
+    mileage    = int(np.median(mileages)) if mileages else None
+
+    return {
+        'model_type':        model_type,
+        'model_year':        model_year,
+        'condition':         condition,
+        'mileage':           mileage,
+        'similar_listings':  similar_listings,
+    }
+
+
+def get_historical_price(vehicle_info):
+    target = {
+        'model_year': str(vehicle_info['model_year']),
+        'model_type': vehicle_info['model_type'],
+        'mileage':    vehicle_info.get('mileage', ''),
+        'condition':  vehicle_info['condition'],
+    }
+    result = historical_matcher.calculate_price_3_years_ago(target)
+    return None if result == 'insufficient_data' else result
+
+
+_CONDITION_PROMPT = """
+You are a certified Porsche pre-purchase inspection specialist with 20+ years of experience.
+Examine every photo of this used Porsche listing carefully.
+
+Seller description:
+\"\"\"
+{seller_text}
+\"\"\"
+
+Return ONLY valid JSON — no markdown fences, no commentary — matching this exact schema:
+{{
+  "overall_condition_grade": "Excellent|Good|Fair|Poor",
+  "condition_score": <float 1.0-10.0>,
+  "paint_and_body": {{
+    "issues_found": [{{"location": "", "severity": "minor|moderate|severe", "description": ""}}],
+    "panel_gaps_even": true,
+    "repaint_evidence": false,
+    "repaint_notes": ""
+  }},
+  "aftermarket_modifications": [{{"item": "", "description": "", "oem_compliant": true}}],
+  "missing_or_damaged_trim": [{{"item": "", "location": "", "severity": ""}}],
+  "interior_condition": {{"grade": "", "issues": []}},
+  "text_photo_inconsistencies": [{{"claim_in_text": "", "what_photos_show": "", "severity": ""}}],
+  "red_flags": [],
+  "recommended_restoration_steps": [],
+  "summary": ""
+}}
+
+Only report issues directly observable in the photos or that contradict the seller text.
+Use empty lists [] for categories with no issues.
+"""
+
+
+def generate_condition_report(image_path, seller_text=''):
+    prompt = _CONDITION_PROMPT.format(
+        seller_text=seller_text.strip() or 'Not provided.'
+    )
+    image = Image.open(image_path).convert('RGB')
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[prompt, image],
+    )
+    raw = response.text.strip()
+    # Strip markdown fences if Gemini adds them despite instructions
+    raw = re.sub(r'^```(?:json)?\s*', '', raw)
+    raw = re.sub(r'\s*```$', '', raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {
+            'overall_condition_grade': 'Unknown',
+            'condition_score': None,
+            'paint_and_body': {'issues_found': [], 'panel_gaps_even': None,
+                               'repaint_evidence': None, 'repaint_notes': ''},
+            'aftermarket_modifications': [],
+            'missing_or_damaged_trim': [],
+            'interior_condition': {'grade': 'Unknown', 'issues': []},
+            'text_photo_inconsistencies': [],
+            'red_flags': [],
+            'recommended_restoration_steps': [],
+            'summary': raw,  # surface raw text so user sees something
+        }
+
+
+def generate_valuation(image_path, vehicle_info, similar_listings,
+                       price_3_years_ago, current_price=None, user_mileage=None):
+    similar_summary = '\n'.join(
+        f"- {l['model_type']} {l['model_year']} ({l['condition']}, "
+        f"{l['mileage']}mi, USD{int(l['price_now']):,})"
+        for l in similar_listings[:5]
+    )
+    mileage_line = (f"- Mileage: {int(user_mileage):,} mi"
+                    if user_mileage is not None else "")
+    prompt = f"""
+You are an expert Porsche appraiser with 20 years of experience.
+Analyse this Porsche listing and provide a market valuation.
+
+Vehicle Information (from image matching):
+- Model Type: {vehicle_info['model_type']}
+- Model Year: {vehicle_info['model_year']}
+- Condition: {vehicle_info['condition']}
+{mileage_line}
+Similar Historical Listings (from vector search):
+{similar_summary}
+
+Historical Price (3 years ago): {"${:,}".format(price_3_years_ago) if price_3_years_ago else "Unknown"}
+Current Asking Price: {"${:,}".format(int(current_price)) if current_price else "Not provided"}
+
+Analyse the uploaded image, compare with similar listings, and provide:
+1. Estimated Current Market Value (USD)
+2. Brief reasoning (2-3 sentences)
+3. Key factors affecting valuation
+
+Format your response as:
+VALUATION: $X,XXX
+REASONING: [your analysis]
+FACTORS: [key factors]
+"""
+    image = Image.open(image_path).convert('RGB')
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[prompt, image],
+    )
+    return response.text
+
+
+def parse_llm_valuation(text):
+    match = re.search(r'VALUATION:\s*\$?([\d,]+)', text)
+    return float(match.group(1).replace(',', '')) if match else None
+
+
+def predict_appreciation(vehicle_info, current_valuation, price_3_years_ago, user_mileage=None):
+    mileage = user_mileage if user_mileage is not None else vehicle_info.get('mileage')
+    input_df = pd.DataFrame([{
+        'model_year':        vehicle_info['model_year'],
+        'model_type':        vehicle_info['model_type'],
+        'mileage':           mileage,
+        'condition':         vehicle_info['condition'],
+        'price_now':         current_valuation,
+        'price_3_years_ago': price_3_years_ago if price_3_years_ago is not None else 0,
+    }])
+    object_cols = appreciation_encoder.feature_names_in_.tolist()
+    for col in object_cols:
+        input_df[col] = input_df[col].astype(str)
+    encoded = pd.DataFrame(appreciation_encoder.transform(input_df[object_cols]))
+    encoded.index = input_df.index
+    X = pd.concat([input_df.drop(object_cols, axis=1), encoded], axis=1)
+    X.columns = X.columns.astype(str)
+    raw = appreciation_model.predict(X)
+    return {
+        'will_appreciate': bool(int(np.round(raw[0])) == 1),
+        'confidence':      round(float(raw[0]), 2),
+    }
+
+
+def full_pipeline(image_path, seller_text='', current_price=None, user_mileage=None):
+    similar      = find_similar_listings(image_path, top_k=10)
+    vehicle_info = extract_vehicle_info(similar)
+    hist_price   = get_historical_price(vehicle_info)
+
+    condition_report = generate_condition_report(image_path, seller_text)
+    llm_valuation    = generate_valuation(image_path, vehicle_info, similar,
+                                           hist_price, current_price,
+                                           user_mileage=user_mileage)
+    current_val = parse_llm_valuation(llm_valuation)
+    if current_val is None:
+        current_val = current_price or float(
+            np.median([l['price_now'] for l in similar[:5]])
+        )
+
+    appreciation = predict_appreciation(vehicle_info, current_val, hist_price,
+                                        user_mileage=user_mileage)
+
+    # Remove nested similar_listings from vehicle_info to keep response clean
+    vehicle_info_clean = {k: v for k, v in vehicle_info.items()
+                          if k != 'similar_listings'}
+
+    return {
+        'vehicle_info':          vehicle_info_clean,
+        'price_3_years_ago':     hist_price,
+        'condition_report':      condition_report,
+        'llm_valuation':         llm_valuation,
+        'current_valuation':     current_val,
+        'appreciation_prediction': appreciation,
+    }
+
+
+# ── Debug logging helper ───────────────────────────────────────────────────────
+import time as _time
+
+_DBG_LOG = os.path.join(ROOT, 'debug-8147b6.log')
+
+def _dbg(msg, data=None, hypothesis=''):
+    entry = json.dumps({'sessionId':'8147b6','timestamp':int(_time.time()*1000),
+                        'location':'app.py','message':msg,'data':data or {},
+                        'hypothesisId':hypothesis})
+    with open(_DBG_LOG, 'a') as _f:
+        _f.write(entry + '\n')
+
+# ── Flask routes ───────────────────────────────────────────────────────────────
+app = Flask(__name__)
+
+
+@app.route('/')
+def index():
+    return render_template('index.html', card_flags=config.DISPLAY_CARDS)
+
+
+@app.route('/debug-log', methods=['POST'])
+def debug_log():
+    entry = request.get_json(silent=True) or {}
+    with open(_DBG_LOG, 'a') as f:
+        f.write(json.dumps(entry) + '\n')
+    return '', 204
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+_ALLOWED_MIMETYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
+_MAGIC_BYTES = {
+    b'\xff\xd8\xff':      'image/jpeg',
+    b'\x89PNG\r\n\x1a\n': 'image/png',
+    b'RIFF':              'image/webp',  # checked further below
+    b'GIF87a':            'image/gif',
+    b'GIF89a':            'image/gif',
+}
+_MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
+_MAX_TEXT_LEN    = 5_000
+_MAX_PRICE       = 10_000_000
+_MAX_MILEAGE     = 10_000_000
+
+
+def _sniff_mimetype(header: bytes) -> str | None:
+    """Return MIME type from the first 12 bytes, or None if unrecognised."""
+    for magic, mime in _MAGIC_BYTES.items():
+        if header[:len(magic)] == magic:
+            if mime == 'image/webp' and header[8:12] != b'WEBP':
+                return None
+            return mime
+    return None
+
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    if 'image' not in request.files or request.files['image'].filename == '':
+        return jsonify({'error': 'No image provided.'}), 400
+
+    image_file = request.files['image']
+
+    # ── Image validation ──────────────────────────────────────────────────────
+    header = image_file.read(12)
+    image_file.seek(0)
+    detected_mime = _sniff_mimetype(header)
+    if detected_mime not in _ALLOWED_MIMETYPES:
+        return jsonify({'error': 'Unsupported image type. Upload a JPEG, PNG, WebP, or GIF.'}), 415
+
+    image_file.seek(0, 2)
+    file_size = image_file.tell()
+    image_file.seek(0)
+    if file_size > _MAX_IMAGE_BYTES:
+        return jsonify({'error': 'Image exceeds the 20 MB size limit.'}), 413
+
+    # ── Text / numeric field validation ───────────────────────────────────────
+    seller_text = request.form.get('seller_text', '')[:_MAX_TEXT_LEN]
+
+    def _parse_positive_float(raw, max_val):
+        raw = (raw or '').strip()
+        if not raw:
+            return None
+        try:
+            val = float(raw)
+        except ValueError:
+            return False
+        if val < 0 or val > max_val or not (val == val):  # NaN guard
+            return False
+        return val
+
+    asking_price = _parse_positive_float(request.form.get('asking_price'), _MAX_PRICE)
+    user_mileage = _parse_positive_float(request.form.get('mileage'),      _MAX_MILEAGE)
+
+    if asking_price is False:
+        return jsonify({'error': 'Invalid asking price.'}), 400
+    if user_mileage is False:
+        return jsonify({'error': 'Invalid mileage value.'}), 400
+
+    # ── Save to temp file ─────────────────────────────────────────────────────
+    _MIME_TO_EXT = {'image/jpeg': '.jpg', 'image/png': '.png',
+                    'image/webp': '.webp', 'image/gif': '.gif'}
+    suffix = _MIME_TO_EXT[detected_mime]
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    image_file.save(tmp.name)
+    tmp.close()
+
+    @stream_with_context
+    def generate():
+        try:
+            cards = config.DISPLAY_CARDS
+            result = {}
+
+            yield _sse({'step': 'scanning', 'label': 'Scanning image…', 'progress': 10})
+            similar = find_similar_listings(tmp.name, top_k=10)
+            vehicle_info = extract_vehicle_info(similar)
+
+            yield _sse({'step': 'identifying', 'label': 'Identifying vehicle…', 'progress': 25})
+            hist_price = get_historical_price(vehicle_info)
+            if cards['vehicle_info']:
+                result['vehicle_info'] = {k: v for k, v in vehicle_info.items() if k != 'similar_listings'}
+                result['price_3_years_ago'] = hist_price
+
+            if cards['manufacturing_history']:
+                result['manufacturing_history'] = MANUFACTURING_HISTORY.get(
+                    vehicle_info.get('model_type'), DEFAULT_HISTORY
+                )
+
+            if cards['condition_report']:
+                yield _sse({'step': 'condition', 'label': 'Analysing condition…', 'progress': 55})
+                result['condition_report'] = generate_condition_report(tmp.name, seller_text)
+
+            current_val = None
+            if cards['valuation'] or cards['appreciation']:
+                yield _sse({'step': 'valuation', 'label': 'Valuing the car…', 'progress': 75})
+                llm_valuation = generate_valuation(tmp.name, vehicle_info, similar,
+                                                hist_price, asking_price, user_mileage=user_mileage)
+                current_val = parse_llm_valuation(llm_valuation) or asking_price or \
+                    float(np.median([l['price_now'] for l in similar[:5]]))
+                if cards['valuation']:
+                    result['llm_valuation'] = llm_valuation
+                    result['current_valuation'] = current_val
+
+            if cards['appreciation']:
+                yield _sse({'step': 'predicting', 'label': 'Predicting appreciation…', 'progress': 90})
+                result['appreciation_prediction'] = predict_appreciation(
+                    vehicle_info, current_val, hist_price, user_mileage=user_mileage)
+
+            yield _sse({'step': 'done', 'label': 'Done', 'progress': 100, 'result': result})
+        
+        except Exception as e:
+            yield _sse({'step': 'error', 'error': str(e)})
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
+
+
+if __name__ == '__main__':
+    app.run(debug=False, host='0.0.0.0', port=8080, use_reloader=False, threaded=True)
 ````
 
 ## File: requirements.txt

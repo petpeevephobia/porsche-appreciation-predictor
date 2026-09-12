@@ -27,4 +27,5 @@ DISPLAY_CARDS = {
     "valuation":        True,   # Card 3: Market Valuation
     "appreciation":     True,   # Card 4: 3-Year Outlook
     "manufacturing_history": True,   # Card 5: Manufacturing History
+    "rarity":           True,   # Card 6: Rarity
 }
